@@ -33,6 +33,7 @@ final class EngineTests: XCTestCase {
         let stubURL = game.appendingPathComponent("\(stub).exe")
         try Fixtures.write(stubURL, Fixtures.makePE(imports: ["KERNEL32.dll"]))
         let binaries = game.appendingPathComponent("FSD/Binaries/Win64")
+        try FileManager.default.createDirectory(at: game.appendingPathComponent("FSD/Content/Paks"), withIntermediateDirectories: true)
         var marker = Data(repeating: 0, count: 64)
         marker.append("++UE4+Release-4.27".data(using: .utf16LittleEndian)!)
         var shippingData = Fixtures.makePE(imports: ["d3d11.dll", "d3d12.dll", "dxgi.dll"])
@@ -204,14 +205,14 @@ final class EngineTests: XCTestCase {
         // Shipping exe instead of the stub.
         let plan = try launcher.gamePlan(prefix: prefix, program: exe, arguments: ["-windowed"], options: LaunchOptions())
         XCTAssertEqual(plan.backend, .dxmt)
-        XCTAssertEqual(plan.arguments, [shipping.path, "-dx11", "-windowed"])
+        XCTAssertEqual(plan.arguments, [shipping.path, "FSD", "-dx11", "-windowed"])
         XCTAssertEqual(plan.workingDirectory?.path, shipping.deletingLastPathComponent().path)
         XCTAssertEqual(plan.notes.count, 3)
 
         // An explicit backend still gets the engine flag; --no-engine-args turns it off;
         // --launch-stub runs the stub.
         let explicit = try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions(backend: .dxmt))
-        XCTAssertEqual(explicit.arguments, [shipping.path, "-dx11"])
+        XCTAssertEqual(explicit.arguments, [shipping.path, "FSD", "-dx11"])
         let plain = try launcher.gamePlan(prefix: prefix, program: exe,
                                           options: LaunchOptions(backend: .dxmt, engineArguments: false, launchStub: true))
         XCTAssertEqual(plain.arguments, [exe.path])

@@ -15,12 +15,16 @@ let windows = (CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopE
 var best: (id: Int, area: Double, label: String)?
 var dialogs: [String] = []
 let errorWords = ["error", "exception", "assert", "runtime library", "crash", "fatal", "failed", "not responding"]
+// Exact titles of generic message boxes (Unreal's errors are titled "Message").
+let errorTitles: Set<String> = ["message"]
 for w in windows {
     let owner = w[kCGWindowOwnerName as String] as? String ?? ""
     let title = w[kCGWindowName as String] as? String ?? ""
     let text = (owner + " " + title).lowercased()
     let isWine = owner.lowercased().contains("wine") || owner.lowercased().hasSuffix(".exe")
-    if isWine, errorWords.contains(where: { title.lowercased().contains($0) }) { dialogs.append(title) }
+    if isWine, errorWords.contains(where: { title.lowercased().contains($0) }) || errorTitles.contains(title.lowercased()) {
+        dialogs.append(title)
+    }
     let matches = filter.map { text.contains($0) } ?? isWine
     guard matches, let bounds = w[kCGWindowBounds as String] as? [String: Double],
           let id = w[kCGWindowNumber as String] as? Int else { continue }

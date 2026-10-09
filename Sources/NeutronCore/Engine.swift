@@ -73,6 +73,10 @@ public struct EngineDetection: Equatable, Sendable {
     /// The game ships Microsoft's D3D12 Agility SDK (`D3D12/D3D12Core.dll`) next to its
     /// renderer, which in Phase 0 marked every Unity 6 and Unreal 5 game with a D3D12 path.
     public let shipsD3D12AgilitySDK: Bool
+    /// Unreal: the project folder next to `Engine/` (the one with `Content/Paks`). A stub passes
+    /// its name as the Shipping exe's first argument; without it Unreal guesses from the exe
+    /// name, which fails when they differ (Satisfactory: FactoryGameSteam vs FactoryGame).
+    public var unrealProject: String? = nil
 
     public static func detect(executable: URL) -> EngineDetection? {
         let fm = FileManager.default
@@ -111,7 +115,14 @@ public struct EngineDetection: Equatable, Sendable {
         }
         guard let renderer else { return nil }
         return EngineDetection(engine: .unreal(version: unrealVersion(executable: renderer)), renderer: renderer,
-                               shipsD3D12AgilitySDK: hasAgilitySDK(in: renderer.deletingLastPathComponent()))
+                               shipsD3D12AgilitySDK: hasAgilitySDK(in: renderer.deletingLastPathComponent()),
+                               unrealProject: unrealProject(in: directory))
+    }
+
+    private static func unrealProject(in root: URL) -> String? {
+        let projects = ((try? FileManager.default.contentsOfDirectory(atPath: root.path)) ?? [])
+            .filter { $0 != "Engine" && isDirectory(root.appendingPathComponent("\($0)/Content/Paks")) }
+        return projects.count == 1 ? projects[0] : nil
     }
 
     private static func isDirectory(_ url: URL) -> Bool {

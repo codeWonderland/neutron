@@ -101,9 +101,12 @@ public struct Launcher: Sendable {
         // check fails on CrossOver-based Wine even with Microsoft's runtime installed, so run
         // the Shipping exe directly (it finds its project without the stub's arguments).
         var target = program
+        var projectArgument: [String] = []
         if !options.launchStub, let engine = scan?.engine, case .unreal = engine.engine, engine.renderer != program {
             target = engine.renderer
-            notes.append("Unreal launcher stub: running \(target.lastPathComponent) directly (--launch-stub to run the stub)")
+            // The stub passes the project name first; do the same.
+            projectArgument = engine.unrealProject.map { [$0] } ?? []
+            notes.append("Unreal launcher stub: running \(([target.lastPathComponent] + projectArgument).joined(separator: " ")) directly (--launch-stub to run the stub)")
         }
 
         let appID = target.deletingLastPathComponent().appendingPathComponent("steam_appid.txt")
@@ -111,7 +114,7 @@ public struct Launcher: Sendable {
             notes.append("uses Steamworks but has no steam_appid.txt; without the Steam client it may quit or relaunch through Steam. Put the game's Steam app ID in \(appID.path)")
         }
 
-        var plan = try winePlan(prefix: prefix, arguments: [target.path] + engineArguments + arguments,
+        var plan = try winePlan(prefix: prefix, arguments: [target.path] + projectArgument + engineArguments + arguments,
                                 options: options, setup: setup)
         plan.workingDirectory = target.deletingLastPathComponent()
         plan.backend = backend

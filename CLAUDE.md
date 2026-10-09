@@ -95,8 +95,9 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   game's own window (`winshot.swift`, needs Screen Recording permission), stops the prefix,
   and prints PASS when the window isn't black (SPLASH when it's under 640×360: a launcher
   splash that never gave way to the game). Use it to check games instead of guessing.
-- `tools/wine-dxmt/`: Wine patch + script that makes a DXMT-capable copy of a macOS Wine
-  build by rebuilding only `winemac.so` (needs `brew install bison flex mingw-w64`).
+- `tools/wine-dxmt/`: Wine patches + script that make a DXMT-capable copy of a macOS Wine
+  build by rebuilding only `winemac.so` and `mfreadwrite.dll` (needs `brew install bison
+  flex mingw-w64`). Every `*.patch` there is applied, in name order.
 - `tools/d3dprobe/`: tiny D3D9/D3D11/D3D12 Windows program for checking a backend without a game
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake
   "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU. It only creates a

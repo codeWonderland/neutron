@@ -1,0 +1,53 @@
+--- a/dlls/winemac.drv/macdrv.h
++++ b/dlls/winemac.drv/macdrv.h
+@@ -203,6 +203,7 @@
+ extern BOOL macdrv_client_surface_acquire_metal_swapchain(struct macdrv_client_surface *surface);
+ 
+ extern struct macdrv_win_data *get_win_data(HWND hwnd);
++extern struct macdrv_win_data *try_get_win_data(HWND hwnd);
+ extern void release_win_data(struct macdrv_win_data *data);
+ extern void init_win_context(void);
+ extern WineWindow *macdrv_get_cocoa_window(HWND hwnd, BOOL require_on_screen);
+--- a/dlls/winemac.drv/surface.c
++++ b/dlls/winemac.drv/surface.c
+@@ -123,8 +123,9 @@
+ 
+     /* The window may have been previously drawn with client_surface, for example, when the window
+      * had been a target for a D3D swapchain. Hide the client_view so that it doesn't occlude the
+-     * content in the window_surface */
+-    if ((data = get_win_data(window_surface->hwnd)))
++     * content in the window_surface. Don't wait for the lock: flushes run under win32u locks
++     * that the thread holding it may be waiting for; a later flush will hide the view. */
++    if ((data = try_get_win_data(window_surface->hwnd)))
+     {
+         if (data->client_view)
+         {
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ -197,6 +197,26 @@
+ 
+     if (!hwnd) return NULL;
+     pthread_mutex_lock(&win_data_mutex);
++    if (win_datas && (data = (struct macdrv_win_data*)CFDictionaryGetValue(win_datas, hwnd)))
++        return data;
++    pthread_mutex_unlock(&win_data_mutex);
++    return NULL;
++}
++
++
++/***********************************************************************
++ *              try_get_win_data
++ *
++ * Like get_win_data, but returns NULL instead of waiting when another thread holds the lock.
++ * For callers that run under win32u locks (window surface flushes), which threads holding
++ * the lock take next, e.g. macdrv_WindowPosChanged calling NtUserGetWindowLongW.
++ */
++struct macdrv_win_data *try_get_win_data(HWND hwnd)
++{
++    struct macdrv_win_data *data;
++
++    if (!hwnd) return NULL;
++    if (pthread_mutex_trylock(&win_data_mutex)) return NULL;
+     if (win_datas && (data = (struct macdrv_win_data*)CFDictionaryGetValue(win_datas, hwnd)))
+         return data;
+     pthread_mutex_unlock(&win_data_mutex);

@@ -5,6 +5,9 @@
 #                                    presents through.
 #   mfreadwrite-shared-samples.patch mfreadwrite.dll (64-bit) hands out shareable video
 #                                    textures, which Unity's video player needs under DXMT.
+#   winemac-flush-deadlock.patch     winemac.so no longer deadlocks when a window is created
+#                                    while another thread flushes a layered window (Unreal
+#                                    splash screens: Deep Rock Galactic hung on its splash).
 #
 #   tools/wine-dxmt/build.sh <wine-root> <output-dir>
 #

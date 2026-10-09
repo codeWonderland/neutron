@@ -127,6 +127,10 @@ public enum Doctor {
             if let pinned = prefix.config.wineVersion, !all.contains(where: { $0.kind == .wine && $0.version == pinned }) {
                 checks.append(Check(.failure, "\(name): pinned Wine \(pinned) isn't registered",
                                     fix: "Register it, or edit \(prefix.directory.appendingPathComponent("neutron.json").path)."))
+            } else if let (kind, pinned) = (prefix.config.runtimeVersions ?? [:]).sorted(by: { $0.key < $1.key })
+                        .first(where: { pin in !all.contains { $0.kind.rawValue == pin.key && $0.version == pin.value } }) {
+                checks.append(Check(.failure, "\(name): pinned \(kind) \(pinned) isn't registered",
+                                    fix: "Register it, or `neutron prefix set-runtime \(prefix.config.name) \(kind) newest`."))
             } else if !fm.fileExists(atPath: prefix.winePrefix.appendingPathComponent("system.reg").path) {
                 checks.append(Check(.warning, "\(name): not initialized",
                                     fix: "Run `neutron wine -p \(prefix.config.name) -- wineboot --init`."))

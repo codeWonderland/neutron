@@ -54,7 +54,7 @@ every push and PR. There is no linter configured.
    Unreal games get `-dx11` unless `--no-engine-args`; Unity gets no flag (it falls back to
    D3D11 itself, and forcing breaks builds without D3D11 shaders).
 2. **Runtimes**: each backend's `requiredRuntime` (dxmt → `dxmt`, d3dmetal → `gptk`) and Wine
-   (version pinned by the prefix, else newest) come from `RuntimeStore`, a JSON manifest that
+   (each pinned by the prefix's `wineVersion` / `runtimeVersions`, else newest) come from `RuntimeStore`, a JSON manifest that
    records paths to user-downloaded runtimes; nothing is copied. `Runtime` computes per-kind
    layout paths (`wineBinary`, `wineDLLDirectory`, `externalLibraryDirectory`).
    `resolveRoot` also looks one folder down, since release archives extract into a wrapper

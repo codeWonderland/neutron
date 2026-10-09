@@ -6,7 +6,7 @@ struct PrefixCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "prefix",
         abstract: "Manage Wine prefixes (bottles).",
-        subcommands: [Create.self, List.self, Delete.self, SetBackend.self, SetEnv.self]
+        subcommands: [Create.self, List.self, Delete.self, SetBackend.self, SetRuntime.self, SetEnv.self]
     )
 
     struct Create: ParsableCommand {
@@ -42,7 +42,8 @@ struct PrefixCommand: ParsableCommand {
             if prefixes.isEmpty { return print("No prefixes. Create one with `neutron prefix create`.") }
             for prefix in prefixes {
                 let config = prefix.config
-                print("\(config.name)  wine=\(config.wineVersion ?? "newest")  backend=\(config.backend?.rawValue ?? "auto")")
+                let pins = (config.runtimeVersions ?? [:]).sorted { $0.key < $1.key }.map { "  \($0.key)=\($0.value)" }.joined()
+                print("\(config.name)  wine=\(config.wineVersion ?? "newest")  backend=\(config.backend?.rawValue ?? "auto")\(pins)")
             }
         }
     }
@@ -84,6 +85,31 @@ struct PrefixCommand: ParsableCommand {
             prefix.config.backend = backend.backend
             try Env.prefixes.save(prefix)
             print("Prefix '\(name)' backend: \(backend)")
+        }
+    }
+
+    struct SetRuntime: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "set-runtime",
+            abstract: "Pin the Wine, DXMT or GPTK version a prefix uses, or `newest`."
+        )
+
+        @Argument(help: "Prefix name.")
+        var name: String
+
+        @Argument(help: "Runtime kind: \(RuntimeKind.allCases.map(\.rawValue).joined(separator: ", ")).")
+        var kind: RuntimeKind
+
+        @Argument(help: "A registered version (see `neutron runtime list`), or `newest`.")
+        var version: String
+
+        func run() throws {
+            var prefix = try Env.prefixes.get(name)
+            let pinned = version == "newest" ? nil : version
+            if let pinned { _ = try Env.runtimes.find(kind, version: pinned) }
+            prefix.config.pin(kind, version: pinned)
+            try Env.prefixes.save(prefix)
+            print("Prefix '\(name)' \(kind.rawValue): \(pinned ?? "newest")")
         }
     }
 

@@ -106,9 +106,11 @@ final class DoctorTests: XCTestCase {
         let store = PrefixStore(paths: paths)
         _ = try store.create(PrefixConfig(name: "pinned", wineVersion: "9.0"))
         _ = try store.create(PrefixConfig(name: "fresh"))
+        _ = try store.create(PrefixConfig(name: "dxmtpin", runtimeVersions: ["dxmt": "v9"]))
         let result = checks()
         XCTAssertTrue(titles(result, .failure).contains { $0.hasPrefix("wine 10.0: missing or broken") })
         XCTAssertTrue(titles(result, .failure).contains("prefix pinned: pinned Wine 9.0 isn't registered"))
         XCTAssertTrue(titles(result, .warning).contains("prefix fresh: not initialized"))
+        XCTAssertTrue(titles(result, .failure).contains("prefix dxmtpin: pinned dxmt v9 isn't registered"))
     }
 }

@@ -252,4 +252,23 @@ final class EngineTests: XCTestCase {
         launcher.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: true) }
         XCTAssertEqual(try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions()).backend, .d3dmetal)
     }
+
+    /// A launcher with no graphics imports (BeamNG.drive.exe) that starts a game exe in a
+    /// subfolder: that exe's imports decide, not the launcher's; tools next to it don't count.
+    func testLauncherFollowsGameExeBelowIt() throws {
+        let game = root.appendingPathComponent("BeamNG.drive")
+        let launcher = game.appendingPathComponent("BeamNG.drive.exe")
+        try Fixtures.write(launcher, Fixtures.makePE(imports: ["KERNEL32.dll", "steam_api.dll"]))
+        try Fixtures.write(game.appendingPathComponent("Bin64/CrashSender.exe"), Fixtures.makePE(imports: ["d3d9.dll"]))
+        try Fixtures.write(game.appendingPathComponent("Bin64/BeamNG.drive.x64.exe"),
+                           Fixtures.makePE(imports: ["d3d11.dll", "dxgi.dll"]))
+        let scan = try GameScan(executable: launcher)
+        XCTAssertEqual(scan.launchedGame?.lastPathComponent, "BeamNG.drive.x64.exe")
+        XCTAssertEqual(scan.recommendation.backend, .dxmt)
+        XCTAssertTrue(scan.usesSteamworks)
+
+        // A game exe with its own graphics imports is taken as is.
+        let direct = try GameScan(executable: game.appendingPathComponent("Bin64/BeamNG.drive.x64.exe"))
+        XCTAssertNil(direct.launchedGame)
+    }
 }

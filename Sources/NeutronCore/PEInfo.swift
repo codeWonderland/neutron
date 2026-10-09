@@ -166,23 +166,72 @@ public struct GameScan: Sendable {
     /// The game ships Steamworks (steam_api64.dll / steam_api.dll). Without the Steam client
     /// such games often quit or relaunch through steam:// unless steam_appid.txt is present.
     public let usesSteamworks: Bool
+    /// For a launcher with no graphics imports of its own, the game exe below it whose imports
+    /// decided the backend (BeamNG.drive.exe starts Bin64/BeamNG.drive.x64.exe). The backend's
+    /// overrides reach that process too, since Wine passes the environment on.
+    public let launchedGame: URL?
 
     public init(executable url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { throw NeutronError.fileNotFound(url.path) }
         executable = try PEInfo(contentsOf: url)
         engine = EngineDetection.detect(executable: url)
         let renderer = engine?.renderer ?? url
-        var all = renderer == url ? executable.imports : ((try? PEInfo(contentsOf: renderer))?.imports ?? [])
-        let directory = renderer.deletingLastPathComponent()
-        let siblings = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        for dll in siblings where dll.pathExtension.lowercased() == "dll" && !GameScan.isMiddleware(dll) {
-            if let api = GameScan.managedWrapperAPI(dll) { all.insert(api) }
-            if let info = try? PEInfo(contentsOf: dll) { all.formUnion(info.imports) }
+        var all = GameScan.imports(of: renderer, known: renderer == url ? executable : nil)
+        var launched: URL?
+        if engine == nil, !GameScan.hasGraphics(all), let game = GameScan.launchedGame(by: url) {
+            launched = game.url
+            all.formUnion(game.imports)
         }
+        launchedGame = launched
         imports = all
         recommendation = BackendResolver.recommend(imports: all, engine: engine)
         usesSteamworks = all.contains("steam_api64.dll") || all.contains("steam_api.dll")
             || GameScan.containsSteamworks(below: url.deletingLastPathComponent())
+    }
+
+    /// Imports of an exe plus every DLL next to it.
+    static func imports(of exe: URL, known: PEInfo? = nil) -> Set<String> {
+        var all = known?.imports ?? (try? PEInfo(contentsOf: exe))?.imports ?? []
+        let siblings = (try? FileManager.default.contentsOfDirectory(at: exe.deletingLastPathComponent(),
+                                                                      includingPropertiesForKeys: nil)) ?? []
+        for dll in siblings where dll.pathExtension.lowercased() == "dll" && !GameScan.isMiddleware(dll) {
+            if let api = GameScan.managedWrapperAPI(dll) { all.insert(api) }
+            if let info = try? PEInfo(contentsOf: dll) { all.formUnion(info.imports) }
+        }
+        return all
+    }
+
+    static func hasGraphics(_ imports: Set<String>) -> Bool {
+        imports.contains { $0.hasPrefix("d3d") || $0.hasPrefix("dxgi") || $0 == "ddraw.dll" || $0 == "opengl32.dll" || $0 == "vulkan-1.dll" }
+    }
+
+    /// The exe one or two folders below a launcher that imports graphics APIs: preferring
+    /// names that start like the launcher's, then the biggest. Tools (crash reporters,
+    /// installers, redistributables) are skipped.
+    static func launchedGame(by launcher: URL) -> (url: URL, imports: Set<String>)? {
+        let fm = FileManager.default
+        let root = launcher.deletingLastPathComponent()
+        guard let walker = fm.enumerator(at: root, includingPropertiesForKeys: [.fileSizeKey],
+                                         options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return nil }
+        let tools = ["crash", "report", "setup", "redist", "unins", "update", "prereq", "install"]
+        var candidates: [(url: URL, size: Int)] = []
+        for case let url as URL in walker {
+            if walker.level > 3 { walker.skipDescendants(); continue }
+            let name = url.lastPathComponent.lowercased()
+            guard walker.level > 1, url.pathExtension.lowercased() == "exe",
+                  !tools.contains(where: { name.contains($0) }) else { continue }
+            candidates.append((url, (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0))
+        }
+        let stem = launcher.deletingPathExtension().lastPathComponent.lowercased()
+        let ordered = candidates.sorted {
+            let a = $0.url.lastPathComponent.lowercased().hasPrefix(stem), b = $1.url.lastPathComponent.lowercased().hasPrefix(stem)
+            return a != b ? a : $0.size > $1.size
+        }
+        for candidate in ordered {
+            let found = imports(of: candidate.url)
+            if hasGraphics(found) { return (candidate.url, found) }
+        }
+        return nil
     }
 
     /// Looks a few levels down for the Steamworks DLL (Unity keeps it in <Game>_Data/Plugins,

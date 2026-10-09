@@ -364,8 +364,11 @@ files to see what happens before they need data (`~/neutron-games/scripts/bintra
   initialises its engine and stops at "Error" after loading the language cache (no data).
 - **Elden Ring**: D3D12 only. On CrossOver 24 + D3DMetal it stays running for 45 s with no
   Steam relaunch. On Wine 11 without GPTK Neutron says to register GPTK.
-- **BeamNG.drive** (auto: wined3d, since `BeamNG.drive.exe` is a launcher that loads its
-  renderer from `Bin64` at runtime), **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3**
+- **BeamNG.drive**: `BeamNG.drive.exe` is a 32-bit launcher with no graphics imports (so auto
+  picked wined3d) that shows a Play menu (D3D11 / D3D12 / Vulkan) and starts
+  `Bin64/BeamNG.drive.x64.exe`. Detection now follows such launchers to the game exe below
+  them (`GameScan.launchedGame`), giving d3dmetal with a dxmt fallback. Across the 164 exes of
+  the 105-game library this changed only BeamNG. **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3**
   (UE4 → DXMT `-dx11`): all still running after 40 s; none relaunch through Steam.
 
 Linux-only installs on the desktop:

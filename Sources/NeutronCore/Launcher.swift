@@ -75,6 +75,9 @@ public struct Launcher: Sendable {
         // Engine flags apply to explicit backends too, so scan whenever the file is readable.
         let scan = chosen == nil ? try GameScan(executable: program) : try? GameScan(executable: program)
         var backend = chosen ?? scan!.recommendation.backend
+        if chosen == nil, let game = scan?.launchedGame {
+            notes.append("\(program.lastPathComponent) imports no graphics APIs; choosing the backend for \(game.lastPathComponent), which it looks like it starts")
+        }
         let wine = try runtimes.find(.wine, version: prefix.config.wineVersion)
         let capabilities = self.capabilities(wine)
         if chosen == nil, let fallback = scan?.recommendation.fallback,

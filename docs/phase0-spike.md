@@ -153,6 +153,28 @@ a prefix in seconds, and the first `Steam.exe` run downloads and installs the cl
 Steam's own logs (`Steam/logs/webhelper.txt`, `cef_log.txt`) are the place to start. Note
 the updater exits and relaunches Steam, so the launched process "ends" after updating.
 
+### Diagnoses (2026-10-09)
+
+- **Timberborn** (Unity 6000.5): the hang is its 110 s intro video. With the video moved
+  aside the game reaches its menu on DXMT (mouse works on Wine 11). Video playback needs
+  GStreamer for Wine's Media Foundation: `DYLD_FALLBACK_LIBRARY_PATH` and
+  `GST_PLUGIN_SYSTEM_PATH_1_0` pointing at a GStreamer 1.28 framework (the Sikarugir
+  Template's works), plus `GST_REGISTRY_FORK=no` and a writable `GST_REGISTRY_1_0`, since that
+  framework has no `gst-plugin-scanner`. The first run spends about 75 s building the
+  registry. Then the pipeline runs, but on DXMT Unity logs "Got null handle from
+  IDXGIResource::GetSharedHandle" and the video never shows: DXMT only returns shared
+  handles for textures created with `D3D11_RESOURCE_MISC_SHARED` (see DXMT #92, partial;
+  #135 "No cutscenes" looks like the same class). On D3DMetal (CrossOver 24) the video plays,
+  confirmed by the user watching it, but Wine 9 has no Unity 6 mouse input. No setup gives
+  both yet.
+- **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
+  `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
+  The Windows build can't be judged from it.
+- **"A game about sucking … Demo"**: renders identically on DXMT and DXVK (two ghost sprites
+  on black), so it's the game's own (likely transparent-overlay) scene, not a backend gap.
+- **Steam's black sign-in window** matches DXMT issue #141: Chromium's ANGLE
+  `SwapChain11::reset` fails with `EGL_BAD_ALLOC` on DXMT. On wined3d, ANGLE gets only FL 9.3.
+
 ### DXVK-macOS (fourth-backend check, 2026-10-09)
 
 Gcenx/DXVK-macOS `v1.10.3-20230507-repack` `-builtin` ships builtin-marked
@@ -162,6 +184,12 @@ and hangs: DXVK's d3d11 needs DXVK's dxgi (CrossOver's dxgi presumably provides 
 The full release includes `dxgi.dll` as a native (non-builtin) DLL, which Wine won't load
 from `lib/wine`. A DXVK backend would need either a builtin DXVK build with dxgi or
 native DLLs in the prefix (against the current design).
+
+Follow-up: the full release works on Wine 11 as native DLLs (D3D11 device, FL 11.0, Apple
+M1). Writing the "Wine builtin DLL" marker at offset 0x40 (the DOS stub, as winebuild
+`--builtin` does) into **copies** of its DLLs lets them be overlaid in a composed runtime:
+64-bit works, 32-bit fails (`0x80004005`). No tested game renders better on DXVK than on
+DXMT yet, so the backend isn't added.
 
 ### Godot
 

@@ -70,7 +70,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)
       *(Gcenx's DXVK-macOS 1.10.3 `-builtin` repack has no `dxgi.dll`; with Wine's dxgi it
       logs "Adapter is not a DXVK adapter" and hangs. The full release has `dxgi.dll` but
-      isn't builtin-marked, so it can't be overlaid. See spike doc)*
+      isn't builtin-marked; marking copies works for 64-bit. No game needs it yet; see spike doc)*
 
 ### Phase 2: Compatibility database
 - [ ] Schema: `games/<steam-appid or exe-hash>.toml` with backend, env, DLL overrides,

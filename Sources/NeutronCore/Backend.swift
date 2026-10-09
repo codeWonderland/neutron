@@ -18,14 +18,15 @@ public enum GraphicsBackend: String, Codable, CaseIterable, Sendable {
     }
 }
 
-/// What a backend adds to Wine's launch environment.
+/// What a backend adds to a Wine launch.
 ///
-/// Neither DXMT nor D3DMetal is copied into the prefix or the Wine build. Both are put on
-/// WINEDLLPATH and forced to "builtin", so prefixes and runtimes stay clean and swappable.
-/// Phase 0 has to confirm Wine loads the unix-side libraries this way (docs/phase0-spike.md).
+/// DXMT and D3DMetal are overlaid onto a clone of the Wine build (`ComposedRuntime`) and
+/// forced to "builtin". Registered runtimes are never modified. Phase 0 ruled out
+/// WINEDLLPATH; see the decision log in PROJECT-OUTLINE.md.
 public struct BackendSetup: Equatable, Sendable {
     public var dllOverrides: [String: String] = [:]
-    public var dllPaths: [URL] = []
+    /// Backend runtime to overlay onto Wine; nil runs Wine as registered.
+    public var overlay: Runtime?
     public var environment: [String: String] = [:]
 
     public init() {}
@@ -45,14 +46,11 @@ public struct BackendSetup: Equatable, Sendable {
         case .dxmt:
             guard let runtime, runtime.kind == .dxmt else { throw NeutronError.runtimeNotFound(.dxmt, version: nil) }
             for dll in d3d11 + ["winemetal"] { setup.dllOverrides[dll] = "b" }
-            setup.dllPaths = [runtime.wineDLLDirectory]
+            setup.overlay = runtime
         case .d3dmetal:
             guard let runtime, runtime.kind == .gptk else { throw NeutronError.runtimeNotFound(.gptk, version: nil) }
             for dll in ["d3d11", "d3d12", "dxgi"] { setup.dllOverrides[dll] = "b" }
-            setup.dllPaths = [runtime.wineDLLDirectory]
-            let external = runtime.externalLibraryDirectory.path
-            setup.environment["DYLD_FALLBACK_LIBRARY_PATH"] = external
-            setup.environment["DYLD_FALLBACK_FRAMEWORK_PATH"] = external
+            setup.overlay = runtime
         }
         return setup
     }

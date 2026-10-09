@@ -22,25 +22,30 @@ neutron (CLI, Sources/neutron)          future: Neutron.app (SwiftUI)
    RuntimeStore ── registered Wine / DXMT / GPTK builds (runtimes/manifest.json)
    PrefixStore  ── prefixes/<name>/{neutron.json, pfx/}
    PEInfo/GameScan ── reads PE import tables → BackendResolver picks a backend
-   BackendSetup ── WINEDLLPATH + WINEDLLOVERRIDES (+ DYLD paths for D3DMetal)
-   Launcher     ── builds a LaunchPlan (pure, testable), then runs it with Process
+   BackendSetup ── builtin WINEDLLOVERRIDES + which backend runtime to overlay
+   ComposedRuntime ── APFS clone of Wine with the backend overlaid (runtimes/composed/)
+   Launcher     ── builds a LaunchPlan (pure, testable); run() composes, runs
+                   `wineboot -u` if the prefix lacks the backend's DLLs, then launches
 ```
 
 State root: `~/Library/Application Support/Neutron` (override with `NEUTRON_HOME`).
 
-**Core design bet:** backends are applied per launch through `WINEDLLPATH` and builtin
-overrides. Nothing is copied into prefixes or Wine builds. This is **unverified**. Phase 0
-tests it, and the fallback is a "composed runtime" (an APFS clone of Wine with the
-backend's files overlaid), which only changes `BackendSetup`.
+**Core design:** a backend is applied by launching a "composed runtime": an APFS clone of
+the registered Wine build with the backend's DLLs overlaid, cached per Wine+backend pair.
+Registered runtimes are never modified, and clones share disk blocks with the original.
+The prefix gets the backend's DLLs through Wine's own `wineboot -u`. Phase 0 showed the
+original WINEDLLPATH plan can't work (see the decision log and `docs/phase0-spike.md`).
 
 ## Phases
 
 ### Phase 0: Spike (hands-on, real hardware)
 Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] First `swift build` / `swift test` on macOS (passing in CI, macos-15)
-- [ ] Local build and test on both Macs
+- [ ] Local build and test on both Macs *(first Mac done: M1, macOS 15.5)*
 - [ ] Gather Wine (wow64 + msync), DXMT and GPTK; record their exact folder layouts
-- [ ] Verify the WINEDLLPATH approach for DXMT and D3DMetal, or switch to composed runtimes
+      *(Wine and DXMT done; GPTK and an msync Wine build still needed)*
+- [x] Verify the WINEDLLPATH approach for DXMT and D3DMetal, or switch to composed runtimes
+      *(WINEDLLPATH fails; switched. DXMT verified with `tools/d3dprobe`; D3DMetal untested)*
 - [ ] Run one D3D9, D3D11, D3D12 and 32-bit game; fill in the results table
 - [ ] Check whether Unreal stub exes need detection to follow `Binaries/Win64/*-Shipping.exe`
 
@@ -50,7 +55,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] `detect`: PE import scan of exe and sibling DLLs → backend recommendation
 - [x] `run`: launch with auto/explicit backend, `--hud`, `--debug`, `--dry-run`
 - [x] `wine`: raw Wine commands in a prefix
-- [ ] Fix whatever Phase 0 finds (layouts, load paths)
+- [ ] Fix whatever Phase 0 finds (layouts, load paths) *(Wine/DXMT layouts and loading done; GPTK pending)*
 - [ ] Log files per launch (`logs/<prefix>/<timestamp>.log`) with tee to the terminal
 - [ ] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)
@@ -97,4 +102,6 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 | 2026-10-08 | Open source, MIT | Easy contribution; Wine/DXMT/GPTK keep their own licences |
 | 2026-10-08 | Register runtimes in place (no downloads yet) | Download sources and layouts need confirming in Phase 0 |
 | 2026-10-08 | Backends through WINEDLLPATH, not file copies | Clean, swappable prefixes; pending Phase 0 verification |
+| 2026-10-08 | **Replaced** WINEDLLPATH with composed runtimes (APFS clone of Wine + backend overlay) and `wineboot -u` to install the backend's DLLs into the prefix | Phase 0: Wine searches its own `lib/wine` before WINEDLLPATH, so Wine's d3d11/dxgi win, and it won't load a builtin (winemetal.dll) that has no copy in the prefix. The composed build ran DXMT at FL 11.0 on 64- and 32-bit. The clone takes ~1 s and shares disk blocks |
+| 2026-10-08 | Dropped the DYLD_FALLBACK_* env for D3DMetal; overlay GPTK's `external/` to `lib/external` instead | DYLD_* variables don't reach Wine's processes (DYLD_PRINT_LIBRARIES printed nothing). Mirroring GPTK's layout should let its relative library paths resolve; unverified until GPTK is tested |
 | 2026-10-08 | JSON for internal state, TOML planned for the game database | No dependencies now; TOML is easier for contributors to edit |

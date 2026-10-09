@@ -8,6 +8,7 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
     case runtimeExists(RuntimeKind, version: String)
     case invalidRuntime(RuntimeKind, path: String, reason: String)
     case fileNotFound(String)
+    case prefixMissingBackendDLLs(prefix: String, runtime: RuntimeKind, files: [String])
 
     public var description: String {
         switch self {
@@ -26,6 +27,12 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
             return "\(path) is not a valid \(kind.rawValue) runtime: \(reason)"
         case .fileNotFound(let path):
             return "File not found: \(path)"
+        case .prefixMissingBackendDLLs(let prefix, let runtime, let files):
+            return """
+            Prefix '\(prefix)' still lacks \(runtime.rawValue) DLLs after `wineboot -u`: \
+            \(files.joined(separator: ", ")). Check the output above, or try a fresh prefix with \
+            `neutron prefix create <name>`.
+            """
         }
     }
 }

@@ -9,6 +9,10 @@ public struct LaunchPlan: Sendable {
     public var environment: [String: String]
     public var workingDirectory: URL?
     public var backend: GraphicsBackend?
+    /// Built (if needed) by `Launcher.run`; `executable` is already inside it.
+    public var composition: ComposedRuntime?
+    public var prefixName: String
+    public var winePrefix: URL
 }
 
 public struct LaunchOptions: Sendable {
@@ -55,18 +59,18 @@ public struct Launcher: Sendable {
     public func winePlan(prefix: Prefix, arguments: [String], options: LaunchOptions,
                          setup: BackendSetup = BackendSetup()) throws -> LaunchPlan {
         let wine = try runtimes.find(.wine, version: prefix.config.wineVersion)
+        let composition = setup.overlay.map { ComposedRuntime(wine: wine, backend: $0, paths: runtimes.paths) }
 
         var env: [String: String] = [
             "WINEPREFIX": prefix.winePrefix.path,
             "WINEDEBUG": options.debug ?? "-all",
             // Mach-semaphore sync; ignored by Wine builds without msync.
             "WINEMSYNC": "1",
+            // MoltenVK (used by winevulkan) logs info to stdout by default; errors only.
+            "MVK_CONFIG_LOG_LEVEL": "1",
         ]
         if options.hud { env["MTL_HUD_ENABLED"] = "1" }
         env.merge(setup.environment) { _, new in new }
-        if !setup.dllPaths.isEmpty {
-            env["WINEDLLPATH"] = setup.dllPaths.map(\.path).joined(separator: ":")
-        }
 
         // The prefix's own settings win, except overrides, which are appended so both apply
         // (Wine lets later entries override earlier ones).
@@ -76,12 +80,29 @@ public struct Launcher: Sendable {
         if !overrides.isEmpty { env["WINEDLLOVERRIDES"] = overrides.joined(separator: ";") }
         env.merge(custom) { _, new in new }
 
-        return LaunchPlan(executable: wine.wineBinary, arguments: arguments, environment: env,
-                          workingDirectory: nil, backend: nil)
+        return LaunchPlan(executable: composition?.wineBinary ?? wine.wineBinary, arguments: arguments,
+                          environment: env, workingDirectory: nil, backend: nil, composition: composition,
+                          prefixName: prefix.config.name, winePrefix: prefix.winePrefix)
     }
 
     /// Runs the plan in the foreground with inherited stdio and returns Wine's exit status.
+    /// First builds the composed runtime and installs the backend's DLLs into the prefix.
     public func run(_ plan: LaunchPlan) throws -> Int32 {
+        if let composition = plan.composition {
+            try composition.build()
+            if !composition.missingPrefixDLLs(winePrefix: plan.winePrefix).isEmpty {
+                var update = plan
+                update.arguments = ["wineboot", "-u"]
+                update.workingDirectory = nil
+                update.composition = nil
+                _ = try run(update)
+                let missing = composition.missingPrefixDLLs(winePrefix: plan.winePrefix)
+                if !missing.isEmpty {
+                    throw NeutronError.prefixMissingBackendDLLs(prefix: plan.prefixName, runtime: composition.backend.kind, files: missing)
+                }
+            }
+        }
+
         let process = Process()
         process.executableURL = plan.executable
         process.arguments = plan.arguments

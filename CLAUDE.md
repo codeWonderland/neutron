@@ -1,17 +1,17 @@
 # CLAUDE.md
 
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 Neutron is a Proton-style launcher that runs Windows games on Apple Silicon Macs using Wine,
 DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status and decisions.
 
 ## Current state: read first
 
-- The Phase 1 code was written on Linux. It builds and its 13 unit tests pass in CI
-  (macos-15), but it has **never been run against real Wine, DXMT or GPTK**. Start by
-  running `swift build && swift test` locally, then move on to the Phase 0 spike.
-- Several layout and loading assumptions are unverified guesses, all listed in
-  `docs/phase0-spike.md`. The big one: DXMT and D3DMetal are applied through `WINEDLLPATH` +
-  builtin overrides (`Sources/NeutronCore/Backend.swift`). Verify on real hardware with
-  `--debug +loaddll` before building on it.
+- Phase 0 is under way (`docs/phase0-spike.md` has findings and results). Verified on an
+  M1 with Gcenx Wine 11.18 + DXMT v0.80: the WINEDLLPATH design **failed** and was replaced
+  by composed runtimes, which run DXMT for 64- and 32-bit programs.
+- **Still unverified:** everything about GPTK/D3DMetal (layout, `lib/external` overlay,
+  D3D12), msync builds, and real games. Don't build on those assumptions until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
   claim a game works unless it was actually run.
@@ -21,29 +21,65 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
 ```sh
 swift build                    # debug build; binary at .build/debug/neutron
 swift test                     # unit tests (no Wine needed)
+swift test --filter BackendTests                      # one test class
+swift test --filter BackendTests/testDXMTSetup        # one test
 NEUTRON_HOME=/tmp/neutron-dev swift run neutron <args>   # keeps dev state out of ~/Library
 swift run neutron run game.exe --dry-run                 # see env + command without launching
 ```
 
-CI (`.github/workflows/ci.yml`) runs build and test on `macos-15` for every push and PR.
+Requires macOS 14+ on Apple Silicon and Xcode 16 / Swift 6 toolchain (package is
+swift-tools 5.9). CI (`.github/workflows/ci.yml`) runs build and test on `macos-15` for
+every push and PR. There is no linter configured.
+
+## How a launch is built
+
+`Launcher.gamePlan` (`Launcher.swift`) is the core path:
+
+1. **Backend choice**, first match wins: `--backend` flag → backend pinned in the prefix's
+   config → `GameScan` auto-detect (`PEInfo.swift` reads PE import tables of the exe and
+   sibling DLLs; `BackendResolver` maps d3d12 → `d3dmetal`, d3d10/11/dxgi → `dxmt`, else `wined3d`).
+2. **Runtimes**: each backend's `requiredRuntime` (dxmt → `dxmt`, d3dmetal → `gptk`) and Wine
+   (version pinned by the prefix, else newest) come from `RuntimeStore`, a JSON manifest that
+   records paths to user-downloaded runtimes; nothing is copied. `Runtime` computes per-kind
+   layout paths (`wineBinary`, `wineDLLDirectory`, `externalLibraryDirectory`).
+   `resolveRoot` also looks one folder down, since release archives extract into a wrapper
+   folder. Wine and DXMT layouts are verified; GPTK's is still a guess.
+3. **Backend**: `BackendSetup.make` yields builtin DLL overrides and an `overlay` runtime.
+   With an overlay, the plan's executable is inside a `ComposedRuntime` (APFS clone of Wine
+   with the backend copied into `lib/wine/<arch>`, cached in `runtimes/composed/`).
+   `Launcher.run` builds it on demand and runs `wineboot -u` if the prefix lacks any of the
+   backend's DLLs; Wine only loads a builtin that has a copy in `system32`/`syswow64`.
+4. **Env**: `winePlan` merges in this order: Neutron defaults (`WINEPREFIX`,
+   `WINEDEBUG=-all`, `WINEMSYNC=1`, `MVK_CONFIG_LOG_LEVEL=1`) → backend env → prefix
+   `environment` overrides everything, except `WINEDLLOVERRIDES`, which is appended after
+   the backend's.
+
+State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `NEUTRON_HOME`):
+`prefixes/<name>/neutron.json` (config) + `prefixes/<name>/pfx/` (the actual `WINEPREFIX`),
+`runtimes/manifest.json`, and disposable `runtimes/composed/<wine>+<kind>-<version>/` builds.
 
 ## Layout
 
 - `Sources/NeutronCore/`: all logic, no CLI/UI code (a SwiftUI app will reuse it).
   `Runtime.swift` (runtime registry and layouts), `Prefix.swift`, `Backend.swift` (backend
-  env + auto-detection), `PEInfo.swift` (PE import parsing, `GameScan`), `Launcher.swift`
-  (`LaunchPlan` building and running).
+  setup + auto-detection), `ComposedRuntime.swift` (clone + overlay), `PEInfo.swift` (PE
+  import parsing, `GameScan`), `Launcher.swift` (`LaunchPlan` building and running).
 - `Sources/neutron/`: swift-argument-parser CLI; one file per command group under `Commands/`.
 - `Tests/NeutronCoreTests/`: XCTest. Tests use a temp `NeutronPaths` root and fake runtimes.
-- `docs/phase0-spike.md`: hardware-spike checklist and results table.
+- `docs/phase0-spike.md`: hardware-spike checklist, findings and results tables.
+- `tools/d3dprobe/`: tiny D3D11/D3D12 Windows program for checking a backend without a game
+  (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake
+  "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU.
 
 ## Conventions
 
 - Keep launch logic pure: build a `LaunchPlan`, test it, and only `Launcher.run` touches
-  processes. New behaviour that changes env or args needs a test in `StoreTests` or `BackendTests`.
+  processes or composes runtimes. New behaviour that changes env or args needs a test in `StoreTests` or `BackendTests`.
 - Errors that users see go through `NeutronError` with an actionable message (say what to run).
-- Don't modify registered runtimes or copy files into prefixes unless Phase 0 shows the
-  WINEDLLPATH approach can't work. If it can't, record that in the outline's decision log.
+- Never modify registered runtimes; backend files go into composed clones only. Get DLLs
+  into prefixes through `wineboot -u`, not by copying them in yourself.
+- Wine ignores `WINEDLLPATH` for DLLs it ships, and `DYLD_*` variables don't reach its
+  processes. Don't reach for either.
 - Game-specific workarounds belong in the Phase 2 compatibility database, not in code.
 - **Never commit or bundle Game Porting Toolkit / D3DMetal files.** Users supply their own copy.
 - When a phase item lands, tick it in `PROJECT-OUTLINE.md`. Add a decision-log row for

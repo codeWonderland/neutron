@@ -45,9 +45,12 @@ State lives in `~/Library/Application Support/Neutron` (override with `NEUTRON_H
 
 ## How backends are applied
 
-Neutron doesn't copy DLLs into prefixes or modify Wine builds. A backend's DLLs go on
-`WINEDLLPATH` and are forced to builtin through `WINEDLLOVERRIDES`. Switching backends is
-just a different launch, and one Wine build can serve every prefix.
+Neutron never modifies the Wine builds you register. For DXMT or D3DMetal it launches a
+*composed runtime*: an APFS clone of your Wine build with the backend's DLLs overlaid,
+built once per Wine + backend pair under `runtimes/composed/`. The clone shares disk blocks
+with the original, so it costs almost no space and takes about a second. The first launch
+with a backend also runs `wineboot -u` so the prefix knows about the backend's DLLs.
+Switching backends is just a different launch.
 
 Auto-detection reads the PE import tables of the `.exe` and the DLLs beside it:
 D3D12 → `d3dmetal`, D3D10/11 → `dxmt`, everything else → `wined3d`.

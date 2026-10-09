@@ -25,7 +25,7 @@ struct RuntimeCommand: ParsableCommand {
         @Argument(help: "Path to the runtime.")
         var path: String
 
-        @Option(help: "Version label (default: the folder name).")
+        @Option(help: "Version label (default: the folder name, or an app bundle's name and version).")
         var version: String?
 
         func run() throws {

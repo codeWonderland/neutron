@@ -276,9 +276,11 @@ and Nightreign (Easy Anti-Cheat), Satisfactory, Palworld, Warframe, BeamNG.drive
 Borderlands 3; Walkabout Mini Golf (14.6 GB, mainly VR). Linux-only installs on the desktop:
 Valheim, Megabonk, Barony and others.
 
-So far, across 60 launched games, 40 reach a rendered window on the patched Gcenx 11.18 +
-DXMT; most failures are Steam-client dependencies (8), then macOS OpenGL limits, missing
-DirectComposition, media playback and VR.
+So far, across 52 launched games, 39 reach a rendered window on the patched Gcenx 11.18 +
+DXMT (9 of the first 14, 27 of the 32-game batch, 3 of 6 large games). The biggest failure
+class is the Steam client (7: CATR, ASTRONEER, Needle In A Haystack, Legends of Idleon,
+Deep Rock Survivor, Deadzone Rogue 2, Skyrim SE), then macOS OpenGL limits, missing
+DirectComposition, media playback (Timberborn) and VR.
 
 **D3D12 on D3DMetal (Unreal 5):** A Game About Digging A Hole on the CrossOver 24 engine with
 GPTK 3.0-3 renders its menu through D3D12 with `-dx12` (`d3d12.dll` loaded). Without a flag

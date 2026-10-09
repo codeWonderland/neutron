@@ -14,8 +14,8 @@ struct RuntimeCommand: ParsableCommand {
             abstract: "Register a runtime that's already on disk.",
             discussion: """
             wine: a Wine build root containing bin/wine (or a Wine .app bundle).
-              DXMT needs a CrossOver-based Wine 8+ that exports winemac's Metal-view
-              functions; upstream builds can create a device but not present frames.
+              DXMT needs a Wine whose winemac.so exports macdrv_functions; patch a stock
+              build with tools/wine-dxmt/build.sh, or use a CrossOver-based build.
             dxmt: an extracted DXMT release containing x86_64-windows/d3d11.dll.
             gptk: Apple's Game Porting Toolkit folder; Neutron finds redist/lib inside it.
             """

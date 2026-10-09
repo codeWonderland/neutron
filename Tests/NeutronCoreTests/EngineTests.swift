@@ -147,6 +147,20 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(scan.recommendation.backend, .dxmt)
     }
 
+    /// A MonoGame (DirectX) game: a .NET exe that imports no graphics DLLs, next to managed
+    /// Direct3D wrappers (like Desktop Survivors 98).
+    func testManagedDirect3DWrappersCountAsImports() throws {
+        let game = root.appendingPathComponent("DS98")
+        let exe = game.appendingPathComponent("DS98.exe")
+        try Fixtures.write(exe, Fixtures.makePE(imports: ["mscoree.dll"]))
+        try Fixtures.write(game.appendingPathComponent("SharpDX.Direct3D11.dll"), Fixtures.makePE(imports: ["mscoree.dll"]))
+        try Fixtures.write(game.appendingPathComponent("SharpDX.Direct3D9.dll"), Fixtures.makePE(imports: ["mscoree.dll"]))
+        try Fixtures.write(game.appendingPathComponent("SharpDX.XAudio2.dll"), Fixtures.makePE(imports: ["mscoree.dll"]))
+        let scan = try GameScan(executable: exe)
+        XCTAssertTrue(scan.imports.isSuperset(of: ["d3d11.dll", "d3d9.dll"]))
+        XCTAssertEqual(scan.recommendation.backend, .dxmt)
+    }
+
     func testLauncherFallsBackAndAddsEngineFlag() throws {
         let paths = NeutronPaths(root: root.appendingPathComponent("state"))
         let runtimes = RuntimeStore(paths: paths)

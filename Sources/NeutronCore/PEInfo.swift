@@ -173,10 +173,24 @@ public struct GameScan: Sendable {
         let directory = renderer.deletingLastPathComponent()
         let siblings = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
         for dll in siblings where dll.pathExtension.lowercased() == "dll" && !GameScan.isMiddleware(dll) {
+            if let api = GameScan.managedWrapperAPI(dll) { all.insert(api) }
             if let info = try? PEInfo(contentsOf: dll) { all.formUnion(info.imports) }
         }
         imports = all
         recommendation = BackendResolver.recommend(imports: all, engine: engine)
+    }
+
+    /// .NET games (MonoGame's DirectX build, custom engines) reach Direct3D through managed
+    /// wrappers that P/Invoke it, so no PE import table names it. The wrapper's name does.
+    static func managedWrapperAPI(_ dll: URL) -> String? {
+        let name = dll.lastPathComponent.lowercased()
+        guard name.hasPrefix("sharpdx.") || name.hasPrefix("vortice.") else { return nil }
+        for (suffix, api) in [(".direct3d12.dll", "d3d12.dll"), (".direct3d11.dll", "d3d11.dll"),
+                              (".direct3d10.dll", "d3d10.dll"), (".direct3d9.dll", "d3d9.dll")]
+        where name.hasSuffix(suffix) {
+            return api
+        }
+        return nil
     }
 
     /// Middleware that imports graphics APIs for its own overlay or embedded browser, not

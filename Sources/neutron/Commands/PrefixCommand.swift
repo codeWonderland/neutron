@@ -62,6 +62,9 @@ struct PrefixCommand: ParsableCommand {
                 print("Delete \(prefix.directory.path) and all games installed in it? [y/N] ", terminator: "")
                 guard readLine()?.lowercased() == "y" else { return print("Cancelled.") }
             }
+            // Stop anything still running in it first; a live wineserver would keep writing
+            // into the folder being deleted. Skipped if its Wine is no longer registered.
+            if let plan = try? Env.launcher.killPlan(prefix: prefix) { _ = try? Env.launcher.run(plan) }
             try Env.prefixes.delete(name)
             print("Deleted prefix '\(name)'.")
         }

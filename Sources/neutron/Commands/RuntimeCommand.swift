@@ -14,6 +14,8 @@ struct RuntimeCommand: ParsableCommand {
             abstract: "Register a runtime that's already on disk.",
             discussion: """
             wine: a Wine build root containing bin/wine (or a Wine .app bundle).
+              DXMT needs a CrossOver-based Wine 8+ that exports winemac's Metal-view
+              functions; upstream builds can create a device but not present frames.
             dxmt: an extracted DXMT release containing x86_64-windows/d3d11.dll.
             gptk: Apple's Game Porting Toolkit folder; Neutron finds redist/lib inside it.
             """
@@ -25,11 +27,15 @@ struct RuntimeCommand: ParsableCommand {
         @Argument(help: "Path to the runtime.")
         var path: String
 
-        @Option(help: "Version label (default: the folder name).")
+        @Option(help: "Version label (default: the folder name, or an app bundle's name and version).")
         var version: String?
 
+        @Option(name: .customLong("library-path"), help: "Folder of dylibs the Wine build needs from its host app (repeatable).")
+        var libraryPaths: [String] = []
+
         func run() throws {
-            let runtime = try Env.runtimes.add(kind: kind, path: URL(fileURLWithPath: path), version: version)
+            let runtime = try Env.runtimes.add(kind: kind, path: URL(fileURLWithPath: path), version: version,
+                                               libraryPaths: libraryPaths.map { URL(fileURLWithPath: $0) })
             print("Registered \(kind.rawValue) \(runtime.version) at \(runtime.path.path)")
         }
     }

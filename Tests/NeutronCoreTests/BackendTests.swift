@@ -20,17 +20,24 @@ final class BackendTests: XCTestCase {
         let runtime = Runtime(kind: .dxmt, version: "0.60", path: URL(fileURLWithPath: "/rt/dxmt"))
         let setup = try BackendSetup.make(for: .dxmt, runtime: runtime)
         XCTAssertEqual(setup.overridesString, "d3d10core=b;d3d11=b;dxgi=b;winemetal=b")
-        XCTAssertEqual(setup.dllPaths.map(\.path), ["/rt/dxmt"])
+        XCTAssertEqual(setup.overlay, runtime)
+        XCTAssertTrue(setup.environment.isEmpty)
     }
 
     func testD3DMetalSetup() throws {
         let runtime = Runtime(kind: .gptk, version: "2.1", path: URL(fileURLWithPath: "/rt/gptk/redist/lib"))
         let setup = try BackendSetup.make(for: .d3dmetal, runtime: runtime)
-        XCTAssertEqual(setup.dllPaths.map(\.path), ["/rt/gptk/redist/lib/wine"])
-        XCTAssertEqual(setup.environment["DYLD_FALLBACK_FRAMEWORK_PATH"], "/rt/gptk/redist/lib/external")
+        XCTAssertEqual(setup.overridesString, "d3d11=b;d3d12=b;dxgi=b")
+        XCTAssertEqual(setup.overlay, runtime)
+    }
+
+    func testWineD3DHasNoOverlay() throws {
+        XCTAssertNil(try BackendSetup.make(for: .wined3d, runtime: nil).overlay)
     }
 
     func testBackendRequiresMatchingRuntime() {
         XCTAssertThrowsError(try BackendSetup.make(for: .dxmt, runtime: nil))
+        let gptk = Runtime(kind: .gptk, version: "2.1", path: URL(fileURLWithPath: "/rt/gptk"))
+        XCTAssertThrowsError(try BackendSetup.make(for: .dxmt, runtime: gptk))
     }
 }

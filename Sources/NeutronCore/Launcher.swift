@@ -9,6 +9,12 @@ public struct LaunchPlan: Sendable {
     public var environment: [String: String]
     public var workingDirectory: URL?
     public var backend: GraphicsBackend?
+    /// Built (if needed) by `Launcher.run`; `executable` is already inside it.
+    public var composition: ComposedRuntime?
+    public var prefixName: String
+    public var winePrefix: URL
+    /// Why the plan looks the way it does (backend fallback, engine flags), for the CLI to show.
+    public var notes: [String] = []
 }
 
 public struct LaunchOptions: Sendable {
@@ -18,11 +24,14 @@ public struct LaunchOptions: Sendable {
     public var hud = false
     /// WINEDEBUG channels; nil silences Wine's logging.
     public var debug: String?
+    /// Add the engine's force-D3D11 flag when the backend has no D3D12 (Unity, Unreal).
+    public var engineArguments = true
 
-    public init(backend: GraphicsBackend? = nil, hud: Bool = false, debug: String? = nil) {
+    public init(backend: GraphicsBackend? = nil, hud: Bool = false, debug: String? = nil, engineArguments: Bool = true) {
         self.backend = backend
         self.hud = hud
         self.debug = debug
+        self.engineArguments = engineArguments
     }
 }
 
@@ -41,32 +50,59 @@ public struct Launcher: Sendable {
     /// Plan for running a Windows program, picking a graphics backend.
     public func gamePlan(prefix: Prefix, program: URL, arguments: [String] = [],
                          options: LaunchOptions) throws -> LaunchPlan {
-        let backend = try options.backend ?? prefix.config.backend ?? GameScan(executable: program).recommendation.backend
+        var notes: [String] = []
+        let chosen = options.backend ?? prefix.config.backend
+        // Engine flags apply to explicit backends too, so scan whenever the file is readable.
+        let scan = chosen == nil ? try GameScan(executable: program) : try? GameScan(executable: program)
+        var backend = chosen ?? scan!.recommendation.backend
+        if chosen == nil, let fallback = scan?.recommendation.fallback,
+           !isAvailable(backend), isAvailable(fallback) {
+            notes.append("no \(backend.requiredRuntime?.rawValue ?? backend.rawValue) runtime registered; using \(fallback.rawValue) instead of \(backend.rawValue)")
+            backend = fallback
+        }
         let runtime = try backend.requiredRuntime.map { try runtimes.find($0) }
         let setup = try BackendSetup.make(for: backend, runtime: runtime)
 
-        var plan = try winePlan(prefix: prefix, arguments: [program.path] + arguments, options: options, setup: setup)
+        var engineArguments: [String] = []
+        if options.engineArguments, let engine = scan?.engine?.engine {
+            engineArguments = engine.arguments(for: backend, userArguments: arguments)
+            if !engineArguments.isEmpty {
+                notes.append("\(engine.description) on \(backend.rawValue): adding \(engineArguments.joined(separator: " ")) (disable with --no-engine-args)")
+            }
+        }
+
+        var plan = try winePlan(prefix: prefix, arguments: [program.path] + engineArguments + arguments,
+                                options: options, setup: setup)
         plan.workingDirectory = program.deletingLastPathComponent()
         plan.backend = backend
+        plan.notes = notes
         return plan
+    }
+
+    private func isAvailable(_ backend: GraphicsBackend) -> Bool {
+        guard let kind = backend.requiredRuntime else { return true }
+        return (try? runtimes.find(kind)) != nil
     }
 
     /// Plan for any Wine command (winecfg, regedit, an installer…) without backend setup.
     public func winePlan(prefix: Prefix, arguments: [String], options: LaunchOptions,
                          setup: BackendSetup = BackendSetup()) throws -> LaunchPlan {
         let wine = try runtimes.find(.wine, version: prefix.config.wineVersion)
+        let composition = setup.overlay.map { ComposedRuntime(wine: wine, backend: $0, paths: runtimes.paths) }
 
         var env: [String: String] = [
             "WINEPREFIX": prefix.winePrefix.path,
             "WINEDEBUG": options.debug ?? "-all",
             // Mach-semaphore sync; ignored by Wine builds without msync.
             "WINEMSYNC": "1",
+            // MoltenVK (used by winevulkan) logs info to stdout by default; errors only.
+            "MVK_CONFIG_LOG_LEVEL": "1",
         ]
         if options.hud { env["MTL_HUD_ENABLED"] = "1" }
-        env.merge(setup.environment) { _, new in new }
-        if !setup.dllPaths.isEmpty {
-            env["WINEDLLPATH"] = setup.dllPaths.map(\.path).joined(separator: ":")
+        if let libraries = wine.libraryPaths, !libraries.isEmpty {
+            env["DYLD_FALLBACK_LIBRARY_PATH"] = libraries.map(\.path).joined(separator: ":")
         }
+        env.merge(setup.environment) { _, new in new }
 
         // The prefix's own settings win, except overrides, which are appended so both apply
         // (Wine lets later entries override earlier ones).
@@ -76,12 +112,29 @@ public struct Launcher: Sendable {
         if !overrides.isEmpty { env["WINEDLLOVERRIDES"] = overrides.joined(separator: ";") }
         env.merge(custom) { _, new in new }
 
-        return LaunchPlan(executable: wine.wineBinary, arguments: arguments, environment: env,
-                          workingDirectory: nil, backend: nil)
+        return LaunchPlan(executable: composition?.wineBinary ?? wine.wineBinary, arguments: arguments,
+                          environment: env, workingDirectory: nil, backend: nil, composition: composition,
+                          prefixName: prefix.config.name, winePrefix: prefix.winePrefix)
     }
 
     /// Runs the plan in the foreground with inherited stdio and returns Wine's exit status.
+    /// First builds the composed runtime and installs the backend's DLLs into the prefix.
     public func run(_ plan: LaunchPlan) throws -> Int32 {
+        if let composition = plan.composition {
+            try composition.build()
+            if !composition.missingPrefixDLLs(winePrefix: plan.winePrefix).isEmpty {
+                var update = plan
+                update.arguments = ["wineboot", "-u"]
+                update.workingDirectory = nil
+                update.composition = nil
+                _ = try run(update)
+                let missing = composition.missingPrefixDLLs(winePrefix: plan.winePrefix)
+                if !missing.isEmpty {
+                    throw NeutronError.prefixMissingBackendDLLs(prefix: plan.prefixName, runtime: composition.backend.kind, files: missing)
+                }
+            }
+        }
+
         let process = Process()
         process.executableURL = plan.executable
         process.arguments = plan.arguments

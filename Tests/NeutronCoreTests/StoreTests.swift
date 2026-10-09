@@ -24,6 +24,12 @@ final class StoreTests: XCTestCase {
         return root
     }
 
+    /// Writes an empty file, creating parent directories.
+    private func touch(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data().write(to: url)
+    }
+
     func testPrefixRoundTrip() throws {
         let store = PrefixStore(paths: paths)
         var prefix = try store.create(PrefixConfig(name: "steam", backend: .dxmt))
@@ -69,6 +75,74 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(plan.environment["WINEDEBUG"], "+err")
         XCTAssertEqual(plan.environment["MTL_HUD_ENABLED"], "1")
         XCTAssertEqual(plan.environment["WINEDLLOVERRIDES"], "d3d10core=b;d3d11=b;dxgi=b;xinput1_3=n,b")
+        XCTAssertEqual(plan.environment["MVK_CONFIG_LOG_LEVEL"], "1")
         XCTAssertEqual(plan.executable.lastPathComponent, "wine")
+        XCTAssertNil(plan.composition)
+    }
+
+    func testDXMTPlanUsesComposedWine() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        try runtimes.add(kind: .wine, path: makeWine("10.2"))
+        let dxmtRoot = paths.root.appendingPathComponent("builds/dxmt-v0.80")
+        try touch(dxmtRoot.appendingPathComponent("x86_64-windows/d3d11.dll"))
+        try runtimes.add(kind: .dxmt, path: dxmtRoot)
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "default"))
+
+        let plan = try Launcher(runtimes: runtimes).gamePlan(
+            prefix: prefix, program: URL(fileURLWithPath: "/games/Game/game.exe"),
+            options: LaunchOptions(backend: .dxmt)
+        )
+        let composed = paths.composed.appendingPathComponent("10.2+dxmt-dxmt-v0.80")
+        XCTAssertEqual(plan.composition?.path.path, composed.path)
+        XCTAssertEqual(plan.executable, composed.appendingPathComponent("bin/wine"))
+        XCTAssertNil(plan.environment["WINEDLLPATH"])
+        XCTAssertEqual(plan.environment["WINEDLLOVERRIDES"], "d3d10core=b;d3d11=b;dxgi=b;winemetal=b")
+        XCTAssertEqual(plan.workingDirectory?.path, "/games/Game")
+        XCTAssertEqual(plan.backend, .dxmt)
+    }
+
+    func testWineLibraryPathsBecomeDyldFallback() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        let frameworks = paths.root.appendingPathComponent("Template.app/Contents/Frameworks")
+        try FileManager.default.createDirectory(at: frameworks, withIntermediateDirectories: true)
+        try runtimes.add(kind: .wine, path: makeWine("cx24"), libraryPaths: [frameworks])
+        XCTAssertEqual(try runtimes.find(.wine).libraryPaths?.map(\.path), [frameworks.path])
+        XCTAssertThrowsError(try runtimes.add(kind: .wine, path: makeWine("cx25"),
+                                              libraryPaths: [paths.root.appendingPathComponent("missing")]))
+
+        let prefixes = PrefixStore(paths: paths)
+        let plain = try prefixes.create(PrefixConfig(name: "plain"))
+        let launcher = Launcher(runtimes: runtimes)
+        let plan = try launcher.winePlan(prefix: plain, arguments: ["winecfg"], options: LaunchOptions())
+        XCTAssertEqual(plan.environment["DYLD_FALLBACK_LIBRARY_PATH"], frameworks.path)
+
+        let custom = try prefixes.create(PrefixConfig(name: "custom", environment: ["DYLD_FALLBACK_LIBRARY_PATH": "/x"]))
+        XCTAssertEqual(try launcher.winePlan(prefix: custom, arguments: [], options: LaunchOptions())
+            .environment["DYLD_FALLBACK_LIBRARY_PATH"], "/x")
+    }
+
+    /// Release archives extract into a wrapper folder; `runtime add` should look inside it.
+    func testRuntimeRootFoundInsideWrapperFolder() throws {
+        let wineWrapper = paths.root.appendingPathComponent("dl/wine-devel-11.18")
+        let app = wineWrapper.appendingPathComponent("Wine Devel.app")
+        try touch(app.appendingPathComponent("Contents/Resources/wine/bin/wine"))
+        XCTAssertEqual(try Runtime.resolveRoot(kind: .wine, at: wineWrapper).path,
+                       app.appendingPathComponent("Contents/Resources/wine").path)
+
+        let dxmtWrapper = paths.root.appendingPathComponent("dl/dxmt-v0.80")
+        try touch(dxmtWrapper.appendingPathComponent("v0.80/x86_64-windows/d3d11.dll"))
+        XCTAssertEqual(try Runtime.resolveRoot(kind: .dxmt, at: dxmtWrapper).path,
+                       dxmtWrapper.appendingPathComponent("v0.80").path)
+
+        XCTAssertThrowsError(try Runtime.resolveRoot(kind: .gptk, at: dxmtWrapper))
+    }
+
+    func testDefaultVersionFromAppBundle() throws {
+        let app = paths.root.appendingPathComponent("Wine Devel.app")
+        try FileManager.default.createDirectory(at: app.appendingPathComponent("Contents"), withIntermediateDirectories: true)
+        let info: NSDictionary = ["CFBundleShortVersionString": "11.18"]
+        XCTAssertTrue(info.write(to: app.appendingPathComponent("Contents/Info.plist"), atomically: true))
+        XCTAssertEqual(Runtime.defaultVersion(for: app), "wine-devel-11.18")
+        XCTAssertEqual(Runtime.defaultVersion(for: URL(fileURLWithPath: "/dl/dxmt-v0.80")), "dxmt-v0.80")
     }
 }

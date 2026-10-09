@@ -46,6 +46,10 @@ enum BackendChoice: ExpressibleByArgument, CustomStringConvertible {
 }
 
 func printPlan(_ plan: LaunchPlan) {
+    if let composition = plan.composition {
+        let state = composition.isBuilt ? "built" : "built on first run"
+        print("# wine \(composition.wine.version) + \(composition.backend.kind.rawValue) \(composition.backend.version) (\(state)): \(composition.path.path)")
+    }
     for (key, value) in plan.environment.sorted(by: { $0.key < $1.key }) {
         print("\(key)=\(value)")
     }
@@ -54,6 +58,7 @@ func printPlan(_ plan: LaunchPlan) {
 }
 
 func execute(_ plan: LaunchPlan) throws {
+    fflush(stdout)  // so our messages come before Wine's output when piped
     let status = try Env.launcher.run(plan)
     if status != 0 { throw ExitCode(status) }
 }

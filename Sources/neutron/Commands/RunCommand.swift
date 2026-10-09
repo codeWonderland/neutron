@@ -26,14 +26,18 @@ struct RunCommand: ParsableCommand {
     @Flag(help: "Print the environment and command instead of running.")
     var dryRun = false
 
+    @Flag(help: "Don't add engine flags such as -force-d3d11 (Unity) or -dx11 (Unreal).")
+    var noEngineArgs = false
+
     @Argument(parsing: .postTerminator, help: "Arguments passed to the program (after --).")
     var programArguments: [String] = []
 
     func run() throws {
         let prefix = try Env.prefixes.get(self.prefix)
         let url = URL(fileURLWithPath: program).standardizedFileURL
-        let options = LaunchOptions(backend: backend.backend, hud: hud, debug: debug)
+        let options = LaunchOptions(backend: backend.backend, hud: hud, debug: debug, engineArguments: !noEngineArgs)
         let plan = try Env.launcher.gamePlan(prefix: prefix, program: url, arguments: programArguments, options: options)
+        for note in plan.notes { print("neutron: \(note)") }
         if dryRun { return printPlan(plan) }
         if let backend = plan.backend { print("neutron: \(url.lastPathComponent) with \(backend.rawValue)") }
         try execute(plan)
@@ -50,14 +54,30 @@ struct DetectCommand: ParsableCommand {
     var program: String
 
     func run() throws {
-        let scan = try GameScan(executable: URL(fileURLWithPath: program).standardizedFileURL)
+        let url = URL(fileURLWithPath: program).standardizedFileURL
+        let scan = try GameScan(executable: url)
         print("architecture: \(scan.executable.machine)")
+        if let engine = scan.engine {
+            print("engine: \(engine.engine.description)")
+            if engine.renderer != url {
+                print("  renderer: \(engine.renderer.path.replacingOccurrences(of: url.deletingLastPathComponent().path + "/", with: ""))")
+            }
+            print("  D3D12 Agility SDK: \(engine.shipsD3D12AgilitySDK ? "yes" : "no")")
+        }
         if scan.executable.machine == .i386 {
             print("  note: 32-bit program; needs a WoW64-capable Wine build")
         }
         let graphics = scan.imports.filter { $0.hasPrefix("d3d") || $0.hasPrefix("dxgi") || $0 == "ddraw.dll" || $0 == "opengl32.dll" || $0 == "vulkan-1.dll" }
         print("graphics imports: \(graphics.isEmpty ? "none" : graphics.sorted().joined(separator: ", "))")
-        print("backend: \(scan.recommendation.backend.rawValue) (\(scan.recommendation.reason))")
+        let pick = scan.recommendation
+        print("backend: \(pick.backend.rawValue) (\(pick.reason))")
+        if let fallback = pick.fallback {
+            print("  fallback: \(fallback.rawValue) when no \(pick.backend.requiredRuntime?.rawValue ?? "") runtime is registered")
+        }
+        if let engine = scan.engine?.engine {
+            let flags = engine.arguments(for: pick.fallback ?? pick.backend, userArguments: [])
+            if !flags.isEmpty { print("  launch flags on \((pick.fallback ?? pick.backend).rawValue): \(flags.joined(separator: " "))") }
+        }
     }
 }
 

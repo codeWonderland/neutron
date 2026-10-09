@@ -19,4 +19,6 @@ public struct NeutronPaths: Sendable {
     public var prefixes: URL { root.appendingPathComponent("prefixes", isDirectory: true) }
     public var runtimes: URL { root.appendingPathComponent("runtimes", isDirectory: true) }
     public var runtimeManifest: URL { runtimes.appendingPathComponent("manifest.json") }
+    /// Wine builds with a backend overlaid; disposable, rebuilt on demand.
+    public var composed: URL { runtimes.appendingPathComponent("composed", isDirectory: true) }
 }

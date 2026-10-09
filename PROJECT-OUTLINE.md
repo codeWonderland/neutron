@@ -22,35 +22,44 @@ neutron (CLI, Sources/neutron)          future: Neutron.app (SwiftUI)
    RuntimeStore ── registered Wine / DXMT / GPTK builds (runtimes/manifest.json)
    PrefixStore  ── prefixes/<name>/{neutron.json, pfx/}
    PEInfo/GameScan ── reads PE import tables → BackendResolver picks a backend
-   BackendSetup ── WINEDLLPATH + WINEDLLOVERRIDES (+ DYLD paths for D3DMetal)
-   Launcher     ── builds a LaunchPlan (pure, testable), then runs it with Process
+   BackendSetup ── builtin WINEDLLOVERRIDES + which backend runtime to overlay
+   ComposedRuntime ── APFS clone of Wine with the backend overlaid (runtimes/composed/)
+   Launcher     ── builds a LaunchPlan (pure, testable); run() composes, runs
+                   `wineboot -u` if the prefix lacks the backend's DLLs, then launches
 ```
 
 State root: `~/Library/Application Support/Neutron` (override with `NEUTRON_HOME`).
 
-**Core design bet:** backends are applied per launch through `WINEDLLPATH` and builtin
-overrides. Nothing is copied into prefixes or Wine builds. This is **unverified**. Phase 0
-tests it, and the fallback is a "composed runtime" (an APFS clone of Wine with the
-backend's files overlaid), which only changes `BackendSetup`.
+**Core design:** a backend is applied by launching a "composed runtime": an APFS clone of
+the registered Wine build with the backend's DLLs overlaid, cached per Wine+backend pair.
+Registered runtimes are never modified, and clones share disk blocks with the original.
+The prefix gets the backend's DLLs through Wine's own `wineboot -u`. Phase 0 showed the
+original WINEDLLPATH plan can't work (see the decision log and `docs/phase0-spike.md`).
 
 ## Phases
 
 ### Phase 0: Spike (hands-on, real hardware)
 Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] First `swift build` / `swift test` on macOS (passing in CI, macos-15)
-- [ ] Local build and test on both Macs
+- [ ] Local build and test on both Macs *(first Mac done: M1, macOS 15.5)*
 - [ ] Gather Wine (wow64 + msync), DXMT and GPTK; record their exact folder layouts
-- [ ] Verify the WINEDLLPATH approach for DXMT and D3DMetal, or switch to composed runtimes
+      *(Wine, DXMT and an msync CrossOver Wine done; Apple's own GPTK still needed)*
+- [x] Verify the WINEDLLPATH approach for DXMT and D3DMetal, or switch to composed runtimes
+      *(WINEDLLPATH fails; switched. DXMT verified with `tools/d3dprobe`; D3DMetal untested)*
 - [ ] Run one D3D9, D3D11, D3D12 and 32-bit game; fill in the results table
-- [ ] Check whether Unreal stub exes need detection to follow `Binaries/Win64/*-Shipping.exe`
+      *(D3D11 done: Loop Tower Demo on DXMT)*
+- [x] Check whether Unreal stub exes need detection to follow `Binaries/Win64/*-Shipping.exe`
+      *(yes: stubs import no graphics DLLs and fall back to wined3d)*
 
 ### Phase 1: CLI runtime and prefix manager *(scaffolded)*
 - [x] `runtime add/list/remove`: register on-disk runtimes
 - [x] `prefix create/list/delete/set-backend/set-env`
 - [x] `detect`: PE import scan of exe and sibling DLLs → backend recommendation
+- [x] Engine-aware detection: Unity/Unreal, Unreal stub following, Agility SDK, engine
+      D3D11 flags, GPTK→DXMT fallback, middleware filtering
 - [x] `run`: launch with auto/explicit backend, `--hud`, `--debug`, `--dry-run`
 - [x] `wine`: raw Wine commands in a prefix
-- [ ] Fix whatever Phase 0 finds (layouts, load paths)
+- [ ] Fix whatever Phase 0 finds (layouts, load paths) *(Wine/DXMT layouts and loading done; GPTK pending)*
 - [ ] Log files per launch (`logs/<prefix>/<timestamp>.log`) with tee to the terminal
 - [ ] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)
@@ -97,4 +106,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 | 2026-10-08 | Open source, MIT | Easy contribution; Wine/DXMT/GPTK keep their own licences |
 | 2026-10-08 | Register runtimes in place (no downloads yet) | Download sources and layouts need confirming in Phase 0 |
 | 2026-10-08 | Backends through WINEDLLPATH, not file copies | Clean, swappable prefixes; pending Phase 0 verification |
+| 2026-10-08 | **Replaced** WINEDLLPATH with composed runtimes (APFS clone of Wine + backend overlay) and `wineboot -u` to install the backend's DLLs into the prefix | Phase 0: Wine searches its own `lib/wine` before WINEDLLPATH, so Wine's d3d11/dxgi win, and it won't load a builtin (winemetal.dll) that has no copy in the prefix. The composed build ran DXMT at FL 11.0 on 64- and 32-bit. The clone takes ~1 s and shares disk blocks |
+| 2026-10-08 | Dropped the DYLD_FALLBACK_* env for D3DMetal; overlay GPTK's `external/` to `lib/external` instead | Mirroring GPTK's layout should let its relative library paths resolve; unverified until GPTK is tested. (The original reason, "DYLD_* doesn't reach Wine", was **wrong**: the test ran through SIP-protected `/usr/bin/perl`, which strips DYLD_*. Revisit if the overlay alone isn't enough.) |
+| 2026-10-08 | DXMT requires a CrossOver-based Wine; Wine runtimes can carry `libraryPaths` (→ `DYLD_FALLBACK_LIBRARY_PATH`) | Upstream Wine 11.18 creates a DXMT device but can't present ("no exported symbols needed by DXMT"): winemac doesn't export `macdrv_functions`. Sikarugir's CrossOver 24.0.7 engine exports it and runs Loop Tower Demo on DXMT, but needs its wrapper's `Frameworks` dylibs |
+| 2026-10-08 | Engine-aware detection (Unity, Unreal): the D3D12 Agility SDK decides d3dmetal (DXMT fallback when no GPTK), otherwise DXMT; backends without D3D12 get the engine's `-force-d3d11` / `-dx11` | Unity and Unreal import both d3d11 and d3d12 (or neither: many UnityPlayer.dll builds import only opengl32), so imports can't tell. Across 38 Unity installs and 11 Unreal games the Agility SDK appeared only in Unity 6 and UE5 builds. These flags are engine-wide rules, not per-game workarounds, so they live in code. Unreal stubs are followed to `*-Shipping.exe`; middleware DLLs (EOS, CEF) are ignored since they import d3d12 for overlays |
 | 2026-10-08 | JSON for internal state, TOML planned for the game database | No dependencies now; TOML is easier for contributors to edit |

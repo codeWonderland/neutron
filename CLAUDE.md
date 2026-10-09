@@ -7,11 +7,14 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
 
 ## Current state: read first
 
-- Phase 0 is under way (`docs/phase0-spike.md` has findings and results). Verified on an
-  M1 with Gcenx Wine 11.18 + DXMT v0.80: the WINEDLLPATH design **failed** and was replaced
-  by composed runtimes, which run DXMT for 64- and 32-bit programs.
-- **Still unverified:** everything about GPTK/D3DMetal (layout, `lib/external` overlay,
-  D3D12), msync builds, and real games. Don't build on those assumptions until tested.
+- Phase 0 is under way (`docs/phase0-spike.md` has findings and results). The WINEDLLPATH
+  design **failed** and was replaced by composed runtimes. DXMT runs a real game (Loop
+  Tower Demo) but only on a CrossOver-based Wine (Sikarugir CX 24 engine); upstream Wine
+  can create a device but not present frames.
+- **Known wrong:** auto-detection sends Unity/Unreal games to D3DMetal (they import both
+  d3d11 and d3d12) and Unreal stub exes to wined3d. Engine-aware detection is the next fix.
+- **Still unverified:** GPTK/D3DMetal (layout, `lib/external` overlay, D3D12) and D3D9 or
+  32-bit games. Don't build on those assumptions until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
   claim a game works unless it was actually run.
@@ -50,7 +53,8 @@ every push and PR. There is no linter configured.
    `Launcher.run` builds it on demand and runs `wineboot -u` if the prefix lacks any of the
    backend's DLLs; Wine only loads a builtin that has a copy in `system32`/`syswow64`.
 4. **Env**: `winePlan` merges in this order: Neutron defaults (`WINEPREFIX`,
-   `WINEDEBUG=-all`, `WINEMSYNC=1`, `MVK_CONFIG_LOG_LEVEL=1`) → backend env → prefix
+   `WINEDEBUG=-all`, `WINEMSYNC=1`, `MVK_CONFIG_LOG_LEVEL=1`, plus
+   `DYLD_FALLBACK_LIBRARY_PATH` from the Wine runtime's `libraryPaths`) → backend env → prefix
    `environment` overrides everything, except `WINEDLLOVERRIDES`, which is appended after
    the backend's.
 
@@ -78,8 +82,9 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
 - Errors that users see go through `NeutronError` with an actionable message (say what to run).
 - Never modify registered runtimes; backend files go into composed clones only. Get DLLs
   into prefixes through `wineboot -u`, not by copying them in yourself.
-- Wine ignores `WINEDLLPATH` for DLLs it ships, and `DYLD_*` variables don't reach its
-  processes. Don't reach for either.
+- Upstream Wine ignores `WINEDLLPATH` for DLLs it ships; don't use it to apply backends.
+- When testing Wine by hand, don't wrap it in `/usr/bin/perl` or other system binaries:
+  macOS strips `DYLD_*` variables when launching SIP-protected programs.
 - Game-specific workarounds belong in the Phase 2 compatibility database, not in code.
 - **Never commit or bundle Game Porting Toolkit / D3DMetal files.** Users supply their own copy.
 - When a phase item lands, tick it in `PROJECT-OUTLINE.md`. Add a decision-log row for

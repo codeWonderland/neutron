@@ -101,6 +101,26 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(plan.backend, .dxmt)
     }
 
+    func testWineLibraryPathsBecomeDyldFallback() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        let frameworks = paths.root.appendingPathComponent("Template.app/Contents/Frameworks")
+        try FileManager.default.createDirectory(at: frameworks, withIntermediateDirectories: true)
+        try runtimes.add(kind: .wine, path: makeWine("cx24"), libraryPaths: [frameworks])
+        XCTAssertEqual(try runtimes.find(.wine).libraryPaths?.map(\.path), [frameworks.path])
+        XCTAssertThrowsError(try runtimes.add(kind: .wine, path: makeWine("cx25"),
+                                              libraryPaths: [paths.root.appendingPathComponent("missing")]))
+
+        let prefixes = PrefixStore(paths: paths)
+        let plain = try prefixes.create(PrefixConfig(name: "plain"))
+        let launcher = Launcher(runtimes: runtimes)
+        let plan = try launcher.winePlan(prefix: plain, arguments: ["winecfg"], options: LaunchOptions())
+        XCTAssertEqual(plan.environment["DYLD_FALLBACK_LIBRARY_PATH"], frameworks.path)
+
+        let custom = try prefixes.create(PrefixConfig(name: "custom", environment: ["DYLD_FALLBACK_LIBRARY_PATH": "/x"]))
+        XCTAssertEqual(try launcher.winePlan(prefix: custom, arguments: [], options: LaunchOptions())
+            .environment["DYLD_FALLBACK_LIBRARY_PATH"], "/x")
+    }
+
     /// Release archives extract into a wrapper folder; `runtime add` should look inside it.
     func testRuntimeRootFoundInsideWrapperFolder() throws {
         let wineWrapper = paths.root.appendingPathComponent("dl/wine-devel-11.18")

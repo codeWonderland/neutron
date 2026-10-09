@@ -14,11 +14,15 @@ public struct Runtime: Codable, Equatable, Sendable {
     public let kind: RuntimeKind
     public let version: String
     public let path: URL
+    /// Wine: folders of dylibs the build expects its host app to provide (e.g. Sikarugir
+    /// engines need the wrapper's `Contents/Frameworks`); passed as DYLD_FALLBACK_LIBRARY_PATH.
+    public var libraryPaths: [URL]?
 
-    public init(kind: RuntimeKind, version: String, path: URL) {
+    public init(kind: RuntimeKind, version: String, path: URL, libraryPaths: [URL]? = nil) {
         self.kind = kind
         self.version = version
         self.path = path
+        self.libraryPaths = libraryPaths
     }
 
     /// Wine: the loader binary. Wine 9+ wow64 builds ship a single `wine`; older ones `wine64`.
@@ -103,9 +107,13 @@ public struct RuntimeStore: Sendable {
     }
 
     @discardableResult
-    public func add(kind: RuntimeKind, path: URL, version: String? = nil) throws -> Runtime {
+    public func add(kind: RuntimeKind, path: URL, version: String? = nil, libraryPaths: [URL] = []) throws -> Runtime {
         let root = try Runtime.resolveRoot(kind: kind, at: path.standardizedFileURL)
-        let runtime = Runtime(kind: kind, version: version ?? Runtime.defaultVersion(for: path.standardizedFileURL), path: root)
+        for library in libraryPaths where !FileManager.default.fileExists(atPath: library.path) {
+            throw NeutronError.fileNotFound(library.path)
+        }
+        let runtime = Runtime(kind: kind, version: version ?? Runtime.defaultVersion(for: path.standardizedFileURL), path: root,
+                              libraryPaths: libraryPaths.isEmpty ? nil : libraryPaths.map(\.standardizedFileURL))
         var all = try list()
         if all.contains(where: { $0.kind == kind && $0.version == runtime.version }) {
             throw NeutronError.runtimeExists(kind, version: runtime.version)

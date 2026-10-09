@@ -70,6 +70,9 @@ public struct Launcher: Sendable {
             "MVK_CONFIG_LOG_LEVEL": "1",
         ]
         if options.hud { env["MTL_HUD_ENABLED"] = "1" }
+        if let libraries = wine.libraryPaths, !libraries.isEmpty {
+            env["DYLD_FALLBACK_LIBRARY_PATH"] = libraries.map(\.path).joined(separator: ":")
+        }
         env.merge(setup.environment) { _, new in new }
 
         // The prefix's own settings win, except overrides, which are appended so both apply

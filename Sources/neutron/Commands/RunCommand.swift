@@ -29,6 +29,9 @@ struct RunCommand: ParsableCommand {
     @Flag(help: "Don't add engine flags such as -force-d3d11 (Unity) or -dx11 (Unreal).")
     var noEngineArgs = false
 
+    @Flag(help: "Don't write a log file (logs/<prefix>/ in Neutron's state folder).")
+    var noLog = false
+
     @Argument(parsing: .postTerminator, help: "Arguments passed to the program (after --).")
     var programArguments: [String] = []
 
@@ -40,7 +43,14 @@ struct RunCommand: ParsableCommand {
         for note in plan.notes { print("neutron: \(note)") }
         if dryRun { return printPlan(plan) }
         if let backend = plan.backend { print("neutron: \(url.lastPathComponent) with \(backend.rawValue)") }
-        try execute(plan)
+        var log: URL?
+        if !noLog {
+            let file = LaunchLog.url(paths: Env.paths, prefix: prefix.config.name, program: url, date: Date())
+            LaunchLog.prune(directory: file.deletingLastPathComponent(), keep: LaunchLog.retained - 1)
+            print("neutron: log: \(file.path)")
+            log = file
+        }
+        try execute(plan, log: log)
     }
 }
 

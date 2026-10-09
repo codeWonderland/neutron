@@ -62,7 +62,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] `run`: launch with auto/explicit backend, `--hud`, `--debug`, `--dry-run`
 - [x] `wine`: raw Wine commands in a prefix
 - [ ] Fix whatever Phase 0 finds (layouts, load paths) *(Wine/DXMT layouts and loading done; GPTK pending)*
-- [ ] Log files per launch (`logs/<prefix>/<timestamp>.log`) with tee to the terminal
+- [x] Log files per launch (`logs/<prefix>/<timestamp>-<exe>.log`) echoed to the terminal
 - [ ] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
 - [x] `neutron kill`: stop a prefix's Wine processes with the right `wineserver -k`
 - [ ] Unreal prerequisites: VC++ runtime registry check (see spike doc)

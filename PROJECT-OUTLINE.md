@@ -45,7 +45,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [ ] Gather Wine (wow64 + msync), DXMT and GPTK; record their exact folder layouts
       *(Wine, DXMT and an msync CrossOver Wine done; Apple's own GPTK still needed)*
 - [x] Verify the WINEDLLPATH approach for DXMT and D3DMetal, or switch to composed runtimes
-      *(WINEDLLPATH fails; switched. DXMT verified with `tools/d3dprobe`; D3DMetal untested)*
+      *(WINEDLLPATH fails; switched. DXMT and D3DMetal both verified; D3DMetal needs a
+      CrossOver-era Wine)*
 - [ ] Run one D3D9, D3D11, D3D12 and 32-bit game; fill in the results table
       *(D3D11 done: Loop Tower Demo on DXMT)*
 - [x] Check whether Unreal stub exes need detection to follow `Binaries/Win64/*-Shipping.exe`
@@ -62,6 +63,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [ ] Fix whatever Phase 0 finds (layouts, load paths) *(Wine/DXMT layouts and loading done; GPTK pending)*
 - [ ] Log files per launch (`logs/<prefix>/<timestamp>.log`) with tee to the terminal
 - [ ] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
+- [ ] `neutron kill`: stop a prefix's Wine processes with the right `wineserver -k`
+- [ ] Unreal prerequisites: VC++ runtime registry check (see spike doc)
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)
 
 ### Phase 2: Compatibility database
@@ -110,5 +113,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 | 2026-10-08 | Dropped the DYLD_FALLBACK_* env for D3DMetal; overlay GPTK's `external/` to `lib/external` instead | Mirroring GPTK's layout should let its relative library paths resolve; unverified until GPTK is tested. (The original reason, "DYLD_* doesn't reach Wine", was **wrong**: the test ran through SIP-protected `/usr/bin/perl`, which strips DYLD_*. Revisit if the overlay alone isn't enough.) |
 | 2026-10-08 | DXMT requires a CrossOver-based Wine; Wine runtimes can carry `libraryPaths` (→ `DYLD_FALLBACK_LIBRARY_PATH`) | Upstream Wine 11.18 creates a DXMT device but can't present ("no exported symbols needed by DXMT"): winemac doesn't export `macdrv_functions`. Sikarugir's CrossOver 24.0.7 engine exports it and runs Loop Tower Demo on DXMT, but needs its wrapper's `Frameworks` dylibs |
 | 2026-10-08 | Ship a Wine patch + script (`tools/wine-dxmt`) that rebuilds only `winemac.so` with an exported `macdrv_functions` table, instead of relying on CrossOver-based builds | The only DXMT-capable builds available (CrossOver 24 engines) are Wine 9-based and lack `EnableMouseInPointer`, so Unity 6 games get no mouse input. Wine 11.18 has it; patching one unix library of a Gcenx build keeps everything else stock and takes ~1 minute. Neutron still doesn't download or bundle Wine |
+| 2026-10-08 | Gate backends on what the Wine build exports (`WineCapabilities`): DXMT needs `winemac.so` → `macdrv_functions`; D3DMetal also needs `ntdll.dll` → `__wine_unix_call`. Auto mode falls back to DXMT, explicit choices warn | D3DMetal (GPTK 3.0) only runs on CrossOver-era Wine (≤ 9); on Wine 11 it can't load, and even with the export restored it crashes on thread-register handling. Checking exports beats version numbers, since builds patch these independently |
+| 2026-10-08 | Unity games always go to DXMT; the Agility SDK rule now applies to Unreal only | Unity's D3D12 renderer needs D3D11On12, which D3DMetal lacks: Unity 6 logs "failed to create D3D11On12 device" and falls back to D3D11 there |
+| 2026-10-08 | The GPTK overlay takes only D3DMetal's files (unix libraries that link into `external/`, their DLLs, `external/`) | Registering a whole Wine build as GPTK (Gcenx's game-porting-toolkit) overlaid its Wine 7.7 `ntdll.so` etc. onto Wine 11 and broke it |
 | 2026-10-08 | Engine-aware detection (Unity, Unreal): the D3D12 Agility SDK decides d3dmetal (DXMT fallback when no GPTK), otherwise DXMT; backends without D3D12 get the engine's `-force-d3d11` / `-dx11` | Unity and Unreal import both d3d11 and d3d12 (or neither: many UnityPlayer.dll builds import only opengl32), so imports can't tell. Across 38 Unity installs and 11 Unreal games the Agility SDK appeared only in Unity 6 and UE5 builds. These flags are engine-wide rules, not per-game workarounds, so they live in code. Unreal stubs are followed to `*-Shipping.exe`; middleware DLLs (EOS, CEF) are ignored since they import d3d12 for overlays |
 | 2026-10-08 | JSON for internal state, TOML planned for the game database | No dependencies now; TOML is easier for contributors to edit |

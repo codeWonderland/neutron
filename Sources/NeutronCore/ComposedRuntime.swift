@@ -26,22 +26,56 @@ public struct ComposedRuntime: Equatable, Sendable {
     }
 
     /// Backend files and where they go in the composed build, relative to its root.
+    ///
+    /// DXMT: everything in its `x86_64-windows`, `i386-windows` and `x86_64-unix` folders.
+    /// GPTK: only D3DMetal's own files: the `x86_64-unix` libraries that are symlinks into
+    /// `external/` (to `libd3dshared.dylib`), the 64-bit DLLs that have one, and `external/`.
+    /// A full Wine build registered as GPTK (e.g. Gcenx's game-porting-toolkit) also has
+    /// hundreds of its own Wine DLLs in those folders, which must not replace ours.
     var overlay: [(source: URL, destination: String)] {
-        var pairs: [(URL, String)] = []
-        for arch in ["x86_64-windows", "i386-windows", "x86_64-unix"] {
-            pairs.append((backend.wineDLLDirectory.appendingPathComponent(arch), "lib/wine/\(arch)"))
+        let fm = FileManager.default
+        func entries(_ directory: URL) -> [String] {
+            ((try? fm.contentsOfDirectory(atPath: directory.path)) ?? []).filter { !$0.hasPrefix(".") }.sorted()
         }
-        if backend.kind == .gptk {
-            // Mirrors GPTK's redist/lib layout, so the unix libraries' relative paths to
-            // D3DMetal.framework still resolve. Unverified until Phase 0 tests GPTK.
-            pairs.append((backend.externalLibraryDirectory, "lib/external"))
+        let dlls = backend.wineDLLDirectory
+        var files: [(URL, String)] = []
+        switch backend.kind {
+        case .gptk:
+            let unixDirectory = dlls.appendingPathComponent("x86_64-unix")
+            let external = backend.externalLibraryDirectory.resolvingSymlinksInPath().path + "/"
+            let allUnix = entries(unixDirectory).filter { $0.hasSuffix(".so") }
+            // D3DMetal's unix libraries are symlinks into external/. A folder with no such
+            // links and few DLLs (Apple's redist) holds only D3DMetal, so take all of it.
+            var unix = allUnix.filter {
+                unixDirectory.appendingPathComponent($0).resolvingSymlinksInPath().path.hasPrefix(external)
+            }
+            if unix.isEmpty, entries(dlls.appendingPathComponent("x86_64-windows")).count < 40 { unix = allUnix }
+            let stems = Set(unix.map { String($0.dropLast(3)).lowercased() })
+            for name in unix {
+                files.append((dlls.appendingPathComponent("x86_64-unix/\(name)"), "lib/wine/x86_64-unix/\(name)"))
+            }
+            for name in entries(dlls.appendingPathComponent("x86_64-windows"))
+            where name.lowercased().hasSuffix(".dll") && stems.contains(String(name.dropLast(4)).lowercased()) {
+                files.append((dlls.appendingPathComponent("x86_64-windows/\(name)"), "lib/wine/x86_64-windows/\(name)"))
+            }
+            // Same relative position as GPTK's redist/lib/external, so the symlinks resolve.
+            for name in entries(backend.externalLibraryDirectory) {
+                files.append((backend.externalLibraryDirectory.appendingPathComponent(name), "lib/external/\(name)"))
+            }
+        case .dxmt, .wine:
+            for arch in ["x86_64-windows", "i386-windows", "x86_64-unix"] {
+                for name in entries(dlls.appendingPathComponent(arch)) {
+                    files.append((dlls.appendingPathComponent("\(arch)/\(name)"), "lib/wine/\(arch)/\(name)"))
+                }
+            }
         }
-        return pairs.filter { FileManager.default.fileExists(atPath: $0.0.path) }
+        return files
     }
 
     /// Records which runtimes a composed build came from, so a re-registered runtime rebuilds it.
     private var stampURL: URL { path.appendingPathComponent(".neutron-composed.json") }
-    private var stamp: Data { Data("[\"\(wine.path.path)\", \"\(backend.path.path)\"]".utf8) }
+    /// Bump `layout` when the overlay rules change, so older composed builds are rebuilt.
+    private var stamp: Data { Data("[3, \"\(wine.path.path)\", \"\(backend.path.path)\"]".utf8) }
 
     public var isBuilt: Bool {
         (try? Data(contentsOf: stampURL)) == stamp
@@ -58,13 +92,10 @@ public struct ComposedRuntime: Equatable, Sendable {
         try fm.copyItem(at: wine.path, to: staging)
 
         for (source, destination) in overlay {
-            let target = staging.appendingPathComponent(destination, isDirectory: true)
-            try fm.createDirectory(at: target, withIntermediateDirectories: true)
-            for name in try fm.contentsOfDirectory(atPath: source.path) where !name.hasPrefix(".") {
-                let to = target.appendingPathComponent(name)
-                try? fm.removeItem(at: to)
-                try fm.copyItem(at: source.appendingPathComponent(name), to: to)
-            }
+            let target = staging.appendingPathComponent(destination)
+            try fm.createDirectory(at: target.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? fm.removeItem(at: target)
+            try fm.copyItem(at: source, to: target)  // symlinks are copied as links
         }
         try stamp.write(to: staging.appendingPathComponent(".neutron-composed.json"))
         try? fm.removeItem(at: path)
@@ -74,19 +105,15 @@ public struct ComposedRuntime: Equatable, Sendable {
     /// The backend's Windows DLLs that the prefix has no copy of. Wine only loads a builtin
     /// DLL when the prefix has one, so these must be installed (`wineboot -u`) before launch.
     public func missingPrefixDLLs(winePrefix: URL) -> [String] {
-        let fm = FileManager.default
-        let systemDirectories = ["x86_64-windows": "system32", "i386-windows": "syswow64"]
+        let systemDirectories = ["lib/wine/x86_64-windows/": "system32", "lib/wine/i386-windows/": "syswow64"]
         var missing: [String] = []
-        for (arch, system) in systemDirectories.sorted(by: { $0.key < $1.key }) {
-            let source = backend.wineDLLDirectory.appendingPathComponent(arch)
-            let names = (try? fm.contentsOfDirectory(atPath: source.path)) ?? []
-            for name in names.sorted() where name.lowercased().hasSuffix(".dll") {
-                let relative = "drive_c/windows/\(system)/\(name)"
-                if !fm.fileExists(atPath: winePrefix.appendingPathComponent(relative).path) {
-                    missing.append(relative)
-                }
+        for (_, destination) in overlay where destination.lowercased().hasSuffix(".dll") {
+            guard let (prefix, system) = systemDirectories.first(where: { destination.hasPrefix($0.key) }) else { continue }
+            let relative = "drive_c/windows/\(system)/\(destination.dropFirst(prefix.count))"
+            if !FileManager.default.fileExists(atPath: winePrefix.appendingPathComponent(relative).path) {
+                missing.append(relative)
             }
         }
-        return missing
+        return missing.sorted()
     }
 }

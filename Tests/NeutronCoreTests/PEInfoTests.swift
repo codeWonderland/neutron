@@ -12,6 +12,12 @@ final class PEInfoTests: XCTestCase {
         XCTAssertEqual(info.imports, ["d3d11.dll", "dxgi.dll"])
     }
 
+    func testParsesExports() throws {
+        let info = try PEInfo(data: Fixtures.makePE(imports: ["KERNEL32.dll"], exports: ["__wine_unix_call", "NtClose"]))
+        XCTAssertEqual(info.exports, ["__wine_unix_call", "NtClose"])
+        XCTAssertEqual(try PEInfo(data: makePE()).exports, [])
+    }
+
     func testRejectsNonPE() {
         XCTAssertThrowsError(try PEInfo(data: Data("#!/bin/sh\n".utf8)))
     }

@@ -79,7 +79,9 @@ public enum BackendResolver {
         // only opengl32.dll), so trust the engine over the import table.
         if let engine, engine.engine.supportsD3D11 {
             let name = engine.engine.description
-            if engine.shipsD3D12AgilitySDK {
+            // Unity's D3D12 renderer needs D3D11On12, which D3DMetal lacks (Unity 6 falls back
+            // to D3D11 there), so only Unreal benefits from D3DMetal.
+            if engine.shipsD3D12AgilitySDK, case .unreal = engine.engine {
                 return BackendRecommendation(
                     backend: .d3dmetal,
                     reason: "\(name) ships the D3D12 Agility SDK, so D3D12 is likely its main renderer",

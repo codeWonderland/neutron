@@ -30,6 +30,8 @@ public struct PEInfo: Equatable, Sendable {
     public let machine: Machine
     /// Lowercased DLL names from the import and delay-import tables.
     public let imports: Set<String>
+    /// Names in the export table, as written (case-sensitive).
+    public let exports: Set<String>
 
     public init(contentsOf url: URL) throws {
         try self.init(data: Data(contentsOf: url, options: .mappedIfSafe))
@@ -107,6 +109,18 @@ public struct PEInfo: Equatable, Sendable {
             }
         }
         imports = names
+
+        // Export directory (index 0): name count at +24, name-pointer table RVA at +32.
+        var exported = Set<String>()
+        if directoryCount > 0, let table = offset(ofRVA: try r.u32(directories)) {
+            let count = min(Int(try r.u32(table + 24)), 65536)
+            if count > 0, let pointers = offset(ofRVA: try r.u32(table + 32)) {
+                for i in 0..<count {
+                    if let o = offset(ofRVA: try r.u32(pointers + i * 4)), let name = r.cString(o) { exported.insert(name) }
+                }
+            }
+        }
+        exports = exported
     }
 }
 

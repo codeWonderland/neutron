@@ -46,8 +46,8 @@ You have two Apple Silicon Macs. If possible, put them on **different macOS vers
 
 ## 2. Confirm backend loading
 
-`tools/d3dprobe` creates a D3D11 (or, with argument `12`, D3D12) device and prints the
-adapter and loaded modules, so a backend can be checked without a game. It needs
+`tools/d3dprobe` creates a D3D11 device (or D3D12 with argument `12`, or D3D9 with `9`,
+which also clears and presents to a hidden window) and prints the adapter and loaded modules, so a backend can be checked without a game. It needs
 mingw-w64 (`brew install mingw-w64`).
 
 ```sh
@@ -130,6 +130,10 @@ For each game, try every backend that applies and note the results.
 | d3dprobe64 | M1 / 15.5 | Gcenx devel 11.18 | dxmt v0.80 (WINEDLLPATH, old design) | Silently fell back to wined3d |
 | d3dprobe64 | M1 / 15.5 | Gcenx devel 11.18 | dxmt v0.80 (composed) | Device at FL 11.0, adapter "Apple M1" |
 | d3dprobe32 | M1 / 15.5 | Gcenx devel 11.18 | dxmt v0.80 (composed) | Device at FL 11.0, adapter "Apple M1" (wow64 works) |
+| d3dprobe64/32 `9` | M1 / 15.5 | Gcenx 11.18 + `tools/wine-dxmt` | wined3d | D3D9 HAL device, clear + present ok ("NVIDIA GeForce 6800") |
+| d3dprobe64/32 `9` | M1 / 15.5 | Sikarugir CX 24.0.7_7 | wined3d | D3D9 HAL device, clear + present ok ("NVIDIA GeForce 8800 GTX") |
+| d3dprobe64/32 | M1 / 15.5 | Gcenx 11.18 + `tools/wine-dxmt`, Sikarugir CX 24.0.7_7 | dxmt v0.80 | Device at FL 11.0, "Apple M1" |
+| d3dprobe64 `12` | M1 / 15.5 | Sikarugir CX 24.0.7_7 | d3dmetal (GPTK 3.0-3) | D3D12 device created |
 
 These only show that device creation works, not that games run.
 

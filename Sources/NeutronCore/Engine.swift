@@ -1,30 +1,37 @@
 import Foundation
 
-/// An engine that ships several renderers and picks one at runtime. Its binaries import
-/// both d3d11 and d3d12, so import tables alone can't say which API a game will use.
+/// An engine that ships several renderers and picks one at runtime, so import tables alone
+/// can't say which API a game will use (Unity and Unreal import both d3d11 and d3d12, or
+/// neither; Godot imports none).
 public enum GameEngine: Equatable, Sendable {
     case unity(version: String?)
     case unreal(version: String?)
+    case godot(version: String?)
 
     public var description: String {
         switch self {
         case .unity(let version): return "Unity" + (version.map { " \($0)" } ?? "")
         case .unreal(let version): return "Unreal" + (version.map { " \($0)" } ?? "")
+        case .godot(let version): return "Godot" + (version.map { " \($0)" } ?? "")
+        }
+    }
+
+    private var majorVersion: Int? {
+        switch self {
+        case .unity(let version?), .unreal(let version?), .godot(let version?):
+            return Int(version.prefix { $0.isNumber })
+        default:
+            return nil
         }
     }
 
     /// Unity 5+ and Unreal 4+ can render with D3D11; Unity 4 and older are D3D9-era.
+    /// Godot never uses Direct3D under Neutron (see `arguments(for:userArguments:)`).
     public var supportsD3D11: Bool {
-        guard case .unity(let version?) = self,
-              let major = Int(version.prefix { $0.isNumber }) else { return true }
-        return major >= 5
-    }
-
-    /// Command-line flag that makes the engine render with D3D11.
-    public var forceD3D11Argument: String {
         switch self {
-        case .unity: return "-force-d3d11"
-        case .unreal: return "-dx11"
+        case .unity: return (majorVersion ?? 5) >= 5
+        case .unreal: return true
+        case .godot: return false
         }
     }
 
@@ -33,14 +40,24 @@ public enum GameEngine: Equatable, Sendable {
         switch self {
         case .unity: return ["-force-d3d11", "-force-d3d12", "-force-vulkan", "-force-glcore", "-force-d3d11-no-singlethreaded"]
         case .unreal: return ["-dx11", "-d3d11", "-dx12", "-d3d12", "-vulkan", "-sm5", "-sm6"]
+        case .godot: return ["--rendering-driver", "--rendering-method", "--video-driver"]
         }
     }
 
-    /// Extra launch arguments for `backend`: backends without D3D12 get the engine's D3D11 flag.
+    /// Extra launch arguments for `backend`.
+    ///
+    /// Unity and Unreal on backends without D3D12 get their force-D3D11 flag. Godot 4 gets
+    /// `--rendering-driver vulkan` (except on D3DMetal): under Wine its default driver fails
+    /// and it falls back to the OpenGL Compatibility renderer, while Vulkan runs Forward+
+    /// through Wine's MoltenVK (Phase 0, Fortune Mill). Godot 3 only has OpenGL.
     public func arguments(for backend: GraphicsBackend, userArguments: [String]) -> [String] {
         guard backend != .d3dmetal else { return [] }
         if userArguments.contains(where: { apiArguments.contains($0.lowercased()) }) { return [] }
-        return [forceD3D11Argument]
+        switch self {
+        case .unity: return ["-force-d3d11"]
+        case .unreal: return ["-dx11"]
+        case .godot: return (majorVersion ?? 4) >= 4 ? ["--rendering-driver", "vulkan"] : []
+        }
     }
 }
 
@@ -65,6 +82,12 @@ public struct EngineDetection: Equatable, Sendable {
             || fm.fileExists(atPath: dataDirectory.path) {
             return EngineDetection(engine: .unity(version: unityVersion(dataDirectory: dataDirectory)),
                                    renderer: executable, shipsD3D12AgilitySDK: hasAgilitySDK(in: directory))
+        }
+
+        // Godot: the engine banner (and its version) are in the executable.
+        if let version = godotVersion(executable: executable) {
+            return EngineDetection(engine: .godot(version: version.isEmpty ? nil : version),
+                                   renderer: executable, shipsD3D12AgilitySDK: false)
         }
 
         // Unreal: a Shipping build itself, a stub launcher (next to Engine/, or with a
@@ -128,6 +151,38 @@ public struct EngineDetection: Equatable, Sendable {
             }
         }
         return nil
+    }
+
+    /// Godot executables contain the engine's URL and a version like "4.5.1.stable.mono".
+    /// Returns nil for non-Godot executables and "" when the version can't be read.
+    static func godotVersion(executable: URL) -> String? {
+        guard let data = try? Data(contentsOf: executable, options: .alwaysMapped) else { return nil }
+        let url = Array("https://godotengine.org".utf8)
+        let found = data.withUnsafeBytes { buffer -> Bool in
+            guard let base = buffer.baseAddress else { return false }
+            return memmem(base, buffer.count, url, url.count) != nil
+        }
+        guard found else { return nil }
+        for major in ["4.", "3."] {
+            let marker = Array(".stable".utf8)
+            let version: String? = data.withUnsafeBytes { buffer in
+                guard let base = buffer.baseAddress else { return nil }
+                var offset = 0
+                while offset < buffer.count, let hit = memmem(base + offset, buffer.count - offset, marker, marker.count) {
+                    let end = base.distance(to: hit)
+                    var start = end
+                    while start > 0, start > end - 12, buffer[start - 1] == UInt8(ascii: ".") || (48...57).contains(buffer[start - 1]) {
+                        start -= 1
+                    }
+                    let text = String(decoding: buffer[start..<end], as: UTF8.self)
+                    if text.hasPrefix(major), text.split(separator: ".").count >= 2 { return text }
+                    offset = end + marker.count
+                }
+                return nil
+            }
+            if let version { return version }
+        }
+        return ""
     }
 
     /// The engine branch Unreal embeds as UTF-16, e.g. "++UE5+Release-5.3" → "5.3". Custom

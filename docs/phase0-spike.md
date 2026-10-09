@@ -133,6 +133,15 @@ For each game, try every backend that applies and note the results.
 
 These only show that device creation works, not that games run.
 
+### Godot
+
+Godot executables contain `https://godotengine.org` and a version string such as
+`4.5.1.stable.mono.official`; no graphics DLLs are imported. Godot 4's default driver fails
+under Wine (it falls back to the OpenGL Compatibility renderer), while
+`--rendering-driver vulkan` runs Forward+ through Wine's Vulkan and MoltenVK. Godot 3 is
+OpenGL-only. Library: Fortune Mill (4.5.1), You Know The Drill Demo (4.4.1), Cosmos Kitten
+(3.5.3).
+
 ### Unreal 5 prerequisites and Steam (Needle In A Haystack, UE 5.3)
 
 - The stub (`BootstrapPackagedGame`) checks
@@ -180,6 +189,12 @@ renderer at runtime (Fortune Mill, CosmosKitten…) fall to wined3d.
 | Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot), mouse clicks work (checked by hand) | not measured | `steam_appid.txt` | No `EnableMouseInPointer` error |
 | Loop Tower Demo | D3D11 | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot) | not measured | `steam_appid.txt` | |
 | Berry Bounce (Unity 6000.3.0f1) | D3D11 (Unity's D3D12 path needs D3D11On12) | M1 / 15.5 | d3dmetal (GPTK 3.0-3) on Sikarugir CX 24.0.7_7 | Renders (screenshot); no mouse input (Wine 9) | not measured | `steam_appid.txt` | Adapter "AMD Compatibility Mode" |
+| Desktop Defender (Unity 2022.3.62f2) | D3D11 (`-force-d3d11`) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (window screenshot) | not measured | `steam_appid.txt` | Streaming web videos fails (`WindowsVideoMedia error 0xc00d36bb`); game continues |
+| SNAKE FARM (Unity 2021.3.45f2) | D3D11 (`-force-d3d11`) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: title screen renders | not measured | `steam_appid.txt` | |
+| Fortune Mill (Godot 4.5.1 Mono) | Vulkan (`--rendering-driver vulkan`) | M1 / 15.5 | none (Wine's Vulkan → MoltenVK) on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: "Vulkan 1.2.323 - Forward+ - Apple M1", menu renders | not measured | `steam_appid.txt` | Without the flag Godot's default driver fails and it falls back to "OpenGL API 4.1 Metal - Compatibility" (also renders) |
+| Cosmos Kitten Demo (Godot 3.5.3 Mono) | OpenGL | M1 / 15.5 | none on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: start screen renders | not measured | `steam_appid.txt` | |
+| Idle Colony (custom, SDL + OpenGL) | OpenGL | M1 / 15.5 | none on Gcenx 11.18 + `tools/wine-dxmt` | **No**: "Cannot create OpenGL Context … Invalid parameter" | | | Asks for a GL context macOS can't provide (macOS GL is 2.1 or core 3.2–4.1) |
+| Terraria, Unrailed | n/a | | | Not testable | | | The desktop has their **Linux** depots: `.exe` is a .NET assembly next to `lib64/`/`linux/` folders |
 | Needle In A Haystack (UE 5.3) | D3D12 | M1 / 15.5 | d3dmetal on Sikarugir CX 24.0.7_7 | **No**: relaunches via `steam://` | | VC++ registry key ≥ the build's toolset; Steam client | See "Unreal 5 prerequisites and Steam" |
 
 Rows here become the first entries in the Phase 2 compatibility database.

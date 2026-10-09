@@ -157,7 +157,9 @@ OpenGL-only. Library: Fortune Mill (4.5.1), You Know The Drill Demo (4.4.1), Cos
   a newer version in the registry. Candidate for the Phase 2 database (or an engine rule).
 - After that the Shipping exe calls `steam://run/<appid>` and exits, even with
   `steam_appid.txt` beside it: Unreal's Steam subsystem relaunches through the Steam client.
-  Steam-integrated Unreal games need Phase 3 (Windows Steam in the prefix).
+  Steam-integrated Unreal games need Phase 3 (Windows Steam in the prefix). So far 3 of 14
+  launched games need the Steam client (Needle In A Haystack, ASTRONEER, CATR), which makes
+  Phase 3 the biggest remaining blocker.
 - The CrossOver engine runs Wine processes from `$TMPDIR/winetemp-*`; `pkill wineserver`
   doesn't stop them. `neutron kill` (the runtime's own `wineserver -k`) does.
 
@@ -196,7 +198,7 @@ see the games table for details. 2026-10-09:
 | PASS | Berry Bounce | 45 |
 | PASS | Cosmos Kitten, You Know The Drill Demo (dark title screens) | 13–17 |
 | FAIL | Idle Colony | error dialog "Wine C++ Runtime Library" |
-| FAIL | CATR | exits during load |
+| FAIL | CATR | relaunches through Steam (needs the Steam client) |
 
 ### Games
 
@@ -217,7 +219,7 @@ see the games table for details. 2026-10-09:
 | A Game About Digging A Hole (UE5) | D3D11 (`-dx11`) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` (auto: d3dmetal → Wine can't run it → dxmt) | **Yes**: menu renders | not measured | `steam_appid.txt` | First Unreal 5 game running; no VC++ prompt or Steam relaunch |
 | ASTRONEER (UE 4.27) | D3D11 (`-dx11`) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **No**: relaunches via `steam://run/361420` | | Steam client (Phase 3) | |
 | Desktop Survivors 98 (MonoGame, .NET) | D3D11 / OpenGL | M1 / 15.5 | dxmt / none on Gcenx 11.18 + `tools/wine-dxmt` | **No** | | | DirectX build: `CreateSwapChainForComposition` (DirectComposition, for its transparent overlay) is E_NOTIMPL in DXMT. On wined3d: "does not support the HiDef profile". OpenGL build: MonoGame needs ARB/EXT_framebuffer_object, missing on macOS GL under Wine |
-| CATR (Unity 2018.3.8f1) | D3D11 | M1 / 15.5 | dxmt (11.18 and CX24), d3dmetal (CX24) | **No**: exits during load | | | Same point on every backend (after Enlighten worker threads start), so not a graphics-backend problem |
+| CATR (Unity 2018.3.8f1) | D3D11 | M1 / 15.5 | dxmt (11.18 and CX24), d3dmetal (CX24) | **No**: relaunches via `steam://run/547480` | | Steam client (Phase 3) | Deletes its own `steam_appid.txt` on launch, so the usual workaround can't work. D3D11 device on the Apple M1 is created first |
 | Terraria, Unrailed | n/a | | | Not testable | | | The desktop has their **Linux** depots: `.exe` is a .NET assembly next to `lib64/`/`linux/` folders |
 | Needle In A Haystack (UE 5.3) | D3D12 | M1 / 15.5 | d3dmetal on Sikarugir CX 24.0.7_7 | **No**: relaunches via `steam://` | | VC++ registry key ≥ the build's toolset; Steam client | See "Unreal 5 prerequisites and Steam" |
 

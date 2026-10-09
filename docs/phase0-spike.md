@@ -149,7 +149,7 @@ renderer at runtime (Fortune Mill, CosmosKitten…) fall to wined3d.
 |---|---|---|---|---|---|---|---|
 | Loop Tower Demo (GameMaker 2024.14) | D3D11 | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 | **Yes**: window renders (checked by eye) | not measured | `steam_appid.txt` (4480440); Wine `--library-path` to Sikarugir Template Frameworks | Steam init fails without a Steam client, game continues. Fails to present on upstream Wine 11.18 |
 | Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 (auto: d3dmetal → no GPTK → dxmt + `-force-d3d11`) | Renders, but **no mouse input** | not measured | `steam_appid.txt` (4454860) | Player.log: "EnableMouseInPointer failed … Call not implemented" (Wine 9 stub). `ID3D11Fence` creation fails (0x80004005), game continues |
-| Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | Renders (screenshot); mouse input: pending | not measured | `steam_appid.txt` | No `EnableMouseInPointer` error |
+| Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot), mouse clicks work (checked by hand) | not measured | `steam_appid.txt` | No `EnableMouseInPointer` error |
 | Loop Tower Demo | D3D11 | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot) | not measured | `steam_appid.txt` | |
 
 Rows here become the first entries in the Phase 2 compatibility database.

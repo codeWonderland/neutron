@@ -163,6 +163,9 @@ public struct GameScan: Sendable {
     /// DLL (UnityPlayer.dll) rather than the exe.
     public let imports: Set<String>
     public let recommendation: BackendRecommendation
+    /// The game ships Steamworks (steam_api64.dll / steam_api.dll). Without the Steam client
+    /// such games often quit or relaunch through steam:// unless steam_appid.txt is present.
+    public let usesSteamworks: Bool
 
     public init(executable url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { throw NeutronError.fileNotFound(url.path) }
@@ -178,6 +181,22 @@ public struct GameScan: Sendable {
         }
         imports = all
         recommendation = BackendResolver.recommend(imports: all, engine: engine)
+        usesSteamworks = all.contains("steam_api64.dll") || all.contains("steam_api.dll")
+            || GameScan.containsSteamworks(below: url.deletingLastPathComponent())
+    }
+
+    /// Looks a few levels down for the Steamworks DLL (Unity keeps it in <Game>_Data/Plugins,
+    /// Unreal under Engine/Binaries/ThirdParty).
+    static func containsSteamworks(below root: URL, depth: Int = 6) -> Bool {
+        let fm = FileManager.default
+        guard let walker = fm.enumerator(at: root, includingPropertiesForKeys: nil,
+                                         options: [.skipsHiddenFiles, .skipsPackageDescendants]) else { return false }
+        for case let url as URL in walker {
+            if walker.level > depth { walker.skipDescendants(); continue }
+            let name = url.lastPathComponent.lowercased()
+            if name == "steam_api64.dll" || name == "steam_api.dll" { return true }
+        }
+        return false
     }
 
     /// .NET games (MonoGame's DirectX build, custom engines) reach Direct3D through managed

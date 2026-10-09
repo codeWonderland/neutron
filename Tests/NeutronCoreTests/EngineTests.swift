@@ -128,6 +128,27 @@ final class EngineTests: XCTestCase {
         XCTAssertNil(try GameScan(executable: exe).engine)
     }
 
+    func testSteamworksDetectionAndNote() throws {
+        let exe = try makeUnityGame(agility: false)
+        XCTAssertFalse(try GameScan(executable: exe).usesSteamworks)
+        let plugin = exe.deletingLastPathComponent().appendingPathComponent("BerryBounce_Data/Plugins/x86_64/steam_api64.dll")
+        try Fixtures.write(plugin)
+        XCTAssertTrue(try GameScan(executable: exe).usesSteamworks)
+
+        let paths = NeutronPaths(root: root.appendingPathComponent("state"))
+        let runtimes = RuntimeStore(paths: paths)
+        let wine = paths.root.appendingPathComponent("builds/wine")
+        try Fixtures.write(wine.appendingPathComponent("bin/wine"))
+        try runtimes.add(kind: .wine, path: wine)
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "default"))
+        let launcher = Launcher(runtimes: runtimes)
+        let note = { try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions(backend: .wined3d)).notes
+            .contains { $0.contains("steam_appid.txt") } }
+        XCTAssertTrue(try note())
+        try Fixtures.write(exe.deletingLastPathComponent().appendingPathComponent("steam_appid.txt"), Data("4454860".utf8))
+        XCTAssertFalse(try note())
+    }
+
     func testEngineArguments() {
         // Unity falls back from D3D12 to D3D11 by itself; forcing breaks builds without D3D11.
         let unity = GameEngine.unity(version: "6000.5.5f1")

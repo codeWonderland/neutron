@@ -8,6 +8,7 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
     case runtimeExists(RuntimeKind, version: String)
     case invalidRuntime(RuntimeKind, path: String, reason: String)
     case fileNotFound(String)
+    case invalidGStreamer(String)
     case prefixMissingBackendDLLs(prefix: String, runtime: RuntimeKind, files: [String])
 
     public var description: String {
@@ -27,6 +28,12 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
             return "\(path) is not a valid \(kind.rawValue) runtime: \(reason)"
         case .fileNotFound(let path):
             return "File not found: \(path)"
+        case .invalidGStreamer(let path):
+            return """
+            \(path) is not a GStreamer install: it has no lib/libgstreamer-1.0.0.dylib and lib/gstreamer-1.0. \
+            Install the GStreamer runtime package from https://gstreamer.freedesktop.org/download/ and pass \
+            /Library/Frameworks/GStreamer.framework.
+            """
         case .prefixMissingBackendDLLs(let prefix, let runtime, let files):
             return """
             Prefix '\(prefix)' still lacks \(runtime.rawValue) DLLs after `wineboot -u`: \

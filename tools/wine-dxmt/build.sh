@@ -1,6 +1,10 @@
 #!/bin/sh
-# Makes a DXMT-capable copy of a macOS Wine build by rebuilding only winemac.so with
-# winemac-dxmt.patch (exports the `macdrv_functions` table DXMT presents through).
+# Makes a DXMT-capable copy of a macOS Wine build by rebuilding only the files these
+# patches touch:
+#   winemac-dxmt.patch               winemac.so exports the `macdrv_functions` table DXMT
+#                                    presents through.
+#   mfreadwrite-shared-samples.patch mfreadwrite.dll (64-bit) hands out shareable video
+#                                    textures, which Unity's video player needs under DXMT.
 #
 #   tools/wine-dxmt/build.sh <wine-root> <output-dir>
 #
@@ -38,8 +42,13 @@ if [ ! -d "$src" ]; then
   echo "Downloading Wine $version source…"
   curl -sSfL -o "$work/wine-$version.tar.xz" "https://dl.winehq.org/wine/source/$series/wine-$version.tar.xz"
   tar -xJf "$work/wine-$version.tar.xz" -C "$work"
-  (cd "$src" && patch -p1 --quiet < "$here/winemac-dxmt.patch")
 fi
+# Apply each patch once; a source tree from an earlier run may lack newer ones.
+for p in "$here"/*.patch; do
+  if ! (cd "$src" && patch -p1 -R --dry-run --force --quiet < "$p" >/dev/null 2>&1); then
+    (cd "$src" && patch -p1 --forward --quiet < "$p") || { echo "error: $(basename "$p") does not apply" >&2; exit 1; }
+  fi
+done
 
 build="$work/build-$version"
 mkdir -p "$build"
@@ -55,13 +64,15 @@ if [ ! -f "$build/Makefile" ]; then
     --without-v4l2 --without-wayland > configure.log 2>&1) \
     || { echo "error: configure failed; see $build/configure.log" >&2; exit 1; }
 fi
-echo "Building winemac.so…"
-make -C "$build" -j"$(sysctl -n hw.ncpu)" dlls/winemac.drv/winemac.so > "$build/make.log" 2>&1 \
-  || { echo "error: build failed; see $build/make.log" >&2; exit 1; }
+echo "Building winemac.so and mfreadwrite.dll…"
+make -C "$build" -j"$(sysctl -n hw.ncpu)" dlls/winemac.drv/winemac.so dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll \
+  > "$build/make.log" 2>&1 || { echo "error: build failed; see $build/make.log" >&2; exit 1; }
 nm -gU "$build/dlls/winemac.drv/winemac.so" | grep -q " _macdrv_functions$" \
   || { echo "error: macdrv_functions is not exported" >&2; exit 1; }
 
 cp -c -R "$wine_root" "$output"
 cp "$build/dlls/winemac.drv/winemac.so" "$output/lib/wine/x86_64-unix/winemac.so"
+x86_64-w64-mingw32-strip -o "$output/lib/wine/x86_64-windows/mfreadwrite.dll" \
+  "$build/dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll"
 echo "Done: $output"
 echo "Register it with: neutron runtime add wine \"$output\" --version wine-$version-dxmt"

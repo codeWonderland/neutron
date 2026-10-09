@@ -15,6 +15,9 @@ public struct LaunchPlan: Sendable {
     public var winePrefix: URL
     /// Why the plan looks the way it does (backend fallback, engine flags), for the CLI to show.
     public var notes: [String] = []
+    /// GStreamer's `gst-inspect-1.0`, run natively by `Launcher.run` (with `environment`) to
+    /// bring the plugin registry up to date before Wine starts. See `winePlan`.
+    public var gstreamerScan: URL?
 }
 
 public struct LaunchOptions: Sendable {
@@ -60,6 +63,7 @@ public struct Launcher: Sendable {
     public func killPlan(prefix: Prefix) throws -> LaunchPlan {
         var plan = try winePlan(prefix: prefix, arguments: ["-k"], options: LaunchOptions())
         plan.executable = plan.executable.deletingLastPathComponent().appendingPathComponent("wineserver")
+        plan.gstreamerScan = nil
         return plan
     }
 
@@ -142,7 +146,22 @@ public struct Launcher: Sendable {
             "MVK_CONFIG_LOG_LEVEL": "1",
         ]
         if options.hud { env["MTL_HUD_ENABLED"] = "1" }
-        if let libraries = wine.libraryPaths, !libraries.isEmpty {
+        var libraries = wine.libraryPaths ?? []
+        var gstreamerScan: URL?
+        if let gstreamer = wine.gstreamer {
+            // winegstreamer.so links @rpath/libgst*.dylib and finds them on the fallback path.
+            // The plugin registry is cached per Wine runtime under Neutron's state. GStreamer
+            // builds it by loading every plugin, and Wine forbids its out-of-process scanner,
+            // so inside a game that takes over a minute and drags in plugins like vulkan with
+            // a second MoltenVK. Running gst-inspect natively first takes seconds; Wine then
+            // only loads the plugins it uses.
+            libraries.append(gstreamer.appendingPathComponent("lib"))
+            env["GST_PLUGIN_SYSTEM_PATH_1_0"] = gstreamer.appendingPathComponent("lib/gstreamer-1.0").path
+            env["GST_REGISTRY_1_0"] = runtimes.paths.gstreamerRegistry(wineVersion: wine.version).path
+            let inspect = gstreamer.appendingPathComponent("bin/gst-inspect-1.0")
+            if FileManager.default.isExecutableFile(atPath: inspect.path) { gstreamerScan = inspect }
+        }
+        if !libraries.isEmpty {
             env["DYLD_FALLBACK_LIBRARY_PATH"] = libraries.map(\.path).joined(separator: ":")
         }
         env.merge(setup.environment) { _, new in new }
@@ -157,13 +176,24 @@ public struct Launcher: Sendable {
 
         return LaunchPlan(executable: composition?.wineBinary ?? wine.wineBinary, arguments: arguments,
                           environment: env, workingDirectory: nil, backend: nil, composition: composition,
-                          prefixName: prefix.config.name, winePrefix: prefix.winePrefix)
+                          prefixName: prefix.config.name, winePrefix: prefix.winePrefix,
+                          gstreamerScan: gstreamerScan)
     }
 
     /// Runs the plan in the foreground and returns Wine's exit status. First builds the
     /// composed runtime and installs the backend's DLLs into the prefix. With `log`, output
     /// goes to that file (see `LaunchLog`) and is echoed to stderr; otherwise stdio is inherited.
     public func run(_ plan: LaunchPlan, log: URL? = nil) throws -> Int32 {
+        if let scan = plan.gstreamerScan {
+            // Best effort: if it fails, GStreamer scans inside Wine as before.
+            let process = Process()
+            process.executableURL = scan
+            process.arguments = ["--version"]
+            process.environment = ProcessInfo.processInfo.environment.merging(plan.environment) { _, new in new }
+            process.standardOutput = FileHandle.nullDevice
+            process.standardError = FileHandle.nullDevice
+            if (try? process.run()) != nil { process.waitUntilExit() }
+        }
         if let composition = plan.composition {
             try composition.build()
             if !composition.missingPrefixDLLs(winePrefix: plan.winePrefix).isEmpty {

@@ -167,6 +167,21 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   #135 "No cutscenes" looks like the same class). On D3DMetal (CrossOver 24) the video plays,
   confirmed by the user watching it, but Wine 9 has no Unity 6 mouse input. No setup gives
   both yet.
+  **Fixed (2026-10-09):** Wine's source reader (`mfreadwrite`) now creates shareable output
+  textures even when the app didn't ask (`tools/wine-dxmt/mfreadwrite-shared-samples.patch`).
+  DXMT itself is right: `tools/d3dprobe` `shared` mode shows Windows-like behaviour (a NULL
+  handle with S_OK for unshared textures), while D3DMetal returns E_NOTIMPL, which is what
+  sent Unity down a copy path there. The reader copies decoder output into its own samples,
+  so stock winegstreamer is enough. With the official GStreamer 1.28.2 runtime
+  (`runtime add wine --gstreamer`), the intro video plays on patched Wine 11.18 + DXMT and the
+  menu takes mouse input once the window is active (the user's earlier "can't click" was a
+  window that never got focus; raw input showed no events until it did). Exit Game quits
+  cleanly (game gone, wineserver 5 s later); an earlier "freeze on exit" was on a build with
+  an extra decoder patch and every GStreamer plugin loaded in-process. Wine starts GStreamer
+  with `--gst-disable-registry-fork`, so Neutron pre-builds the plugin registry natively:
+  launch to video went from ~90 s to 17 s. `applemedia` (VideoToolbox H.264) still links
+  GStreamer's own MoltenVK, so the process holds two copies (objc duplicate-class warning);
+  no harm seen with DXMT, but Vulkan games that play video should be checked.
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
   The Windows build can't be judged from it.

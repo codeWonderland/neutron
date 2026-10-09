@@ -17,12 +17,31 @@ public struct Runtime: Codable, Equatable, Sendable {
     /// Wine: folders of dylibs the build expects its host app to provide (e.g. Sikarugir
     /// engines need the wrapper's `Contents/Frameworks`); passed as DYLD_FALLBACK_LIBRARY_PATH.
     public var libraryPaths: [URL]?
+    /// Wine: a GStreamer install (the root holding `lib/gstreamer-1.0`) for winegstreamer, which
+    /// plays the videos games load through Media Foundation. See `Runtime.resolveGStreamer`.
+    public var gstreamer: URL?
 
-    public init(kind: RuntimeKind, version: String, path: URL, libraryPaths: [URL]? = nil) {
+    public init(kind: RuntimeKind, version: String, path: URL, libraryPaths: [URL]? = nil, gstreamer: URL? = nil) {
         self.kind = kind
         self.version = version
         self.path = path
         self.libraryPaths = libraryPaths
+        self.gstreamer = gstreamer
+    }
+
+    /// Finds the GStreamer root (holding `lib/libgstreamer-1.0.0.dylib` and `lib/gstreamer-1.0/`)
+    /// in a user-supplied directory: the official `GStreamer.framework`, its `Versions/1.0`, or a
+    /// plain install prefix.
+    public static func resolveGStreamer(at path: URL) throws -> URL {
+        let fm = FileManager.default
+        for candidate in [path, path.appendingPathComponent("Versions/Current"), path.appendingPathComponent("Versions/1.0")] {
+            let lib = candidate.appendingPathComponent("lib")
+            if fm.fileExists(atPath: lib.appendingPathComponent("libgstreamer-1.0.0.dylib").path),
+               fm.fileExists(atPath: lib.appendingPathComponent("gstreamer-1.0").path) {
+                return candidate.resolvingSymlinksInPath()
+            }
+        }
+        throw NeutronError.invalidGStreamer(path.path)
     }
 
     /// Wine: the loader binary. Wine 9+ wow64 builds ship a single `wine`; older ones `wine64`.
@@ -107,13 +126,16 @@ public struct RuntimeStore: Sendable {
     }
 
     @discardableResult
-    public func add(kind: RuntimeKind, path: URL, version: String? = nil, libraryPaths: [URL] = []) throws -> Runtime {
+    public func add(kind: RuntimeKind, path: URL, version: String? = nil, libraryPaths: [URL] = [],
+                    gstreamer: URL? = nil) throws -> Runtime {
         let root = try Runtime.resolveRoot(kind: kind, at: path.standardizedFileURL)
+        let gstreamerRoot = try gstreamer.map { try Runtime.resolveGStreamer(at: $0.standardizedFileURL) }
         for library in libraryPaths where !FileManager.default.fileExists(atPath: library.path) {
             throw NeutronError.fileNotFound(library.path)
         }
         let runtime = Runtime(kind: kind, version: version ?? Runtime.defaultVersion(for: path.standardizedFileURL), path: root,
-                              libraryPaths: libraryPaths.isEmpty ? nil : libraryPaths.map(\.standardizedFileURL))
+                              libraryPaths: libraryPaths.isEmpty ? nil : libraryPaths.map(\.standardizedFileURL),
+                              gstreamer: gstreamerRoot)
         var all = try list()
         if all.contains(where: { $0.kind == kind && $0.version == runtime.version }) {
             throw NeutronError.runtimeExists(kind, version: runtime.version)

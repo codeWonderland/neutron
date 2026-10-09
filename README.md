@@ -31,6 +31,7 @@ with `neutron runtime add`:
 | Rosetta 2 | `softwareupdate --install-rosetta` | Runs Wine's x86_64 code |
 | Wine | [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds/releases) (`wine-devel-*-osx64.tar.xz`) | Works as-is for wined3d. **For DXMT, patch it** with `tools/wine-dxmt/build.sh` (below) |
 | DXMT | [3Shain/dxmt releases](https://github.com/3Shain/dxmt/releases) (`dxmt-*-builtin.tar.gz`) | D3D10/11 → Metal. Point `runtime add` at the extracted folder |
+| GStreamer | [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/#macos) (the macOS **runtime** installer, `gstreamer-1.0-*-universal.pkg`) | Optional; plays in-game videos (intros, cutscenes). Installs `/Library/Frameworks/GStreamer.framework`; pass it to `runtime add wine --gstreamer` |
 | Game Porting Toolkit (D3DMetal) | [Apple Developer](https://developer.apple.com/games/game-porting-toolkit/) (free Apple ID) | Optional; for D3D12 games (Unreal 5). Never redistributed by Neutron. Only runs on a CrossOver-based Wine 9 or older (see below) |
 
 ### A Wine that works with DXMT
@@ -39,14 +40,16 @@ DXMT draws into game windows through functions in Wine's Mac driver that stock W
 keep private. Without them a game starts but every frame fails with *"Failed to create metal
 view, it seems like your Wine has no exported symbols needed by DXMT"*.
 `tools/wine-dxmt/build.sh` makes a patched copy of a Gcenx build. It rebuilds only
-`winemac.so` from the matching Wine source with `tools/wine-dxmt/winemac-dxmt.patch`, which
-takes about a minute:
+`winemac.so` (with `winemac-dxmt.patch`) and `mfreadwrite.dll` (with
+`mfreadwrite-shared-samples.patch`, so Unity games' videos play under DXMT) from the
+matching Wine source, which takes a few minutes the first time:
 
 ```sh
 brew install bison flex mingw-w64
 tools/wine-dxmt/build.sh "$HOME/Downloads/wine-devel-11.18/Wine Devel.app/Contents/Resources/wine" \
     ~/Neutron/wine-11.18-dxmt
-neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt
+neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt \
+    --gstreamer /Library/Frameworks/GStreamer.framework
 ```
 
 Tested with Wine 11.18. Use a recent Wine (11.15 or later): Unity 6 games need its mouse
@@ -65,7 +68,8 @@ swift build -c release
 alias neutron="$PWD/.build/release/neutron"
 
 # Register runtimes you've already downloaded (the folders the archives extract to)
-neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt
+neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt \
+    --gstreamer /Library/Frameworks/GStreamer.framework   # optional: in-game video
 neutron runtime add dxmt ~/Downloads/dxmt-v0.80
 neutron runtime add gptk "/Volumes/Evaluation environment for Windows games 2.1"
 neutron doctor                                # checks the Mac, runtimes and prefixes; says how to fix problems
@@ -85,6 +89,17 @@ State lives in `~/Library/Application Support/Neutron` (override with `NEUTRON_H
 Every `neutron run` also writes a log to `logs/<prefix>/` there (the newest 20 are kept;
 `--no-log` to skip), starting with the exact environment and command, which is handy for
 bug reports.
+### In-game video
+
+Games that play video through Media Foundation (most Unity and many Unreal games) need
+Wine's GStreamer bridge, which needs GStreamer itself. Install the official runtime package
+and register your Wine with `--gstreamer /Library/Frameworks/GStreamer.framework`; Neutron
+then points Wine at its libraries and plugins, and refreshes GStreamer's plugin list under
+`runtimes/gstreamer/` with the framework's `gst-inspect-1.0` before each launch (a couple of
+seconds the first time; inside Wine it would take over a minute). Without it those games show a black screen or skip the video, and
+`neutron doctor` warns about it. To add it to a Wine you've already registered, remove and
+re-add it (`neutron runtime remove wine <version>`; prefixes keep their pin by version).
+
 Steam games usually need a `steam_appid.txt` containing the game's app ID next to the
 `.exe` when Steam isn't running.
 
@@ -125,4 +140,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). In short, fix bugs upstream where they b
 ## License
 
 MIT. Wine, DXMT and the Game Porting Toolkit keep their own licenses;
-`tools/wine-dxmt/winemac-dxmt.patch` modifies Wine and is LGPL-2.1-or-later like Wine.
+the patches in `tools/wine-dxmt/` modify Wine and are LGPL-2.1-or-later like Wine.

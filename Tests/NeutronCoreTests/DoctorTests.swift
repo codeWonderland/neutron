@@ -37,12 +37,18 @@ final class DoctorTests: XCTestCase {
         return Data(b)
     }
 
-    private func addWine(_ version: String, libraryPaths: [URL] = [], needs dylib: String? = nil) throws {
+    private func addWine(_ version: String, libraryPaths: [URL] = [], needs dylib: String? = nil,
+                         winegstreamer: Bool = false, gstreamer: URL? = nil) throws {
         let root = paths.root.appendingPathComponent("builds/\(version)")
         try Fixtures.write(root.appendingPathComponent("bin/wine"))
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: root.appendingPathComponent("bin/wine").path)
         if let dylib { try Fixtures.write(root.appendingPathComponent("bin/wineserver"), makeMachO(loading: "@rpath/\(dylib)")) }
-        try RuntimeStore(paths: paths).add(kind: .wine, path: root, version: version, libraryPaths: libraryPaths)
+        if winegstreamer {
+            try Fixtures.write(root.appendingPathComponent("lib/wine/x86_64-unix/winegstreamer.so"),
+                               makeMachO(loading: "@rpath/libgstreamer-1.0.0.dylib"))
+        }
+        try RuntimeStore(paths: paths).add(kind: .wine, path: root, version: version, libraryPaths: libraryPaths,
+                                           gstreamer: gstreamer)
     }
 
     func testHostProblems() {
@@ -75,6 +81,23 @@ final class DoctorTests: XCTestCase {
         try Fixtures.write(frameworks.appendingPathComponent("libinotify.0.dylib"))
         try addWine("cx24-ok", libraryPaths: [frameworks], needs: "libinotify.0.dylib")
         XCTAssertFalse(titles(checks(), .failure).contains { $0.hasPrefix("wine cx24-ok") })
+    }
+
+    func testGStreamer() throws {
+        try addWine("plain")
+        try addWine("novideo", winegstreamer: true)
+        let gstreamer = paths.root.appendingPathComponent("GStreamer")
+        try Fixtures.write(gstreamer.appendingPathComponent("lib/libgstreamer-1.0.0.dylib"))
+        try Fixtures.write(gstreamer.appendingPathComponent("lib/gstreamer-1.0/libgstapp.dylib"))
+        try addWine("video", winegstreamer: true, gstreamer: gstreamer)
+        var warnings = titles(checks(), .warning)
+        XCTAssertTrue(warnings.contains("wine novideo: no GStreamer, so in-game videos won't play"), "\(warnings)")
+        XCTAssertFalse(warnings.contains("wine plain: no GStreamer, so in-game videos won't play"))
+        XCTAssertFalse(warnings.contains("wine video: no GStreamer, so in-game videos won't play"))
+
+        try FileManager.default.removeItem(at: gstreamer)
+        warnings = titles(checks(), .failure)
+        XCTAssertTrue(warnings.contains("wine video: GStreamer at \(gstreamer.path) is missing"), "\(warnings)")
     }
 
     func testRuntimeMovedAndPrefixProblems() throws {

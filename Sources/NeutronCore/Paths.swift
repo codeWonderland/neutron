@@ -22,4 +22,8 @@ public struct NeutronPaths: Sendable {
     public var logs: URL { root.appendingPathComponent("logs", isDirectory: true) }
     /// Wine builds with a backend overlaid; disposable, rebuilt on demand.
     public var composed: URL { runtimes.appendingPathComponent("composed", isDirectory: true) }
+    /// GStreamer's plugin registry cache for a Wine runtime; disposable.
+    public func gstreamerRegistry(wineVersion: String) -> URL {
+        runtimes.appendingPathComponent("gstreamer/\(wineVersion).bin")
+    }
 }

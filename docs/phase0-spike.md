@@ -183,6 +183,12 @@ code at 30, 60 and 90 s, on every launch through Neutron. Gotcha: Steam adds its
 `HKCU\...\Run` (`steam.exe -silent`), so `wineboot` starts a Steam without the backend's
 environment, whose window stays black and which a later launch just hands off to.
 Regression sweep of the 13 local games on this Wine + DXMT pair: unchanged (11 PASS).
+`neutron steam install` on a fresh prefix (26 s, downloads `SteamSetup.exe`, Run value removed)
+then `neutron steam`: the first self-update crashed once in Steam's downloader ("Add pending
+download", page fault in a worker thread; seen on two builds, not on a third, so likely
+intermittent), and a second `neutron steam` finished it and showed the sign-in window (100%
+lit at 50 s). A `winemac.so` built in a hand-configured tree crashed the 32-bit bootstrapper
+every time; the script-built one doesn't, so always use `tools/wine-dxmt/build.sh` output.
 
 ### Diagnoses (2026-10-09)
 

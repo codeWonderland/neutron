@@ -213,6 +213,33 @@ final class StoreTests: XCTestCase {
         XCTAssertNil(old.runtimeVersions)
     }
 
+    /// `neutron steam`: the installer runs silently, the autostart value is removed, and the
+    /// client runs on DXMT with the sandbox off and no game-only notes.
+    func testSteamPlans() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        try runtimes.add(kind: .wine, path: makeWine("11.18"))
+        let dxmtRoot = paths.root.appendingPathComponent("builds/dxmt")
+        try touch(dxmtRoot.appendingPathComponent("x86_64-windows/d3d11.dll"))
+        try runtimes.add(kind: .dxmt, path: dxmtRoot)
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "steam"))
+        let launcher = Launcher(runtimes: runtimes)
+
+        let installer = URL(fileURLWithPath: "/tmp/SteamSetup.exe")
+        XCTAssertEqual(try launcher.steamInstallPlan(prefix: prefix, installer: installer).arguments, ["/tmp/SteamSetup.exe", "/S"])
+        XCTAssertEqual(try launcher.steamRemoveAutostartPlan(prefix: prefix).arguments,
+                       ["reg", "delete", #"HKCU\Software\Microsoft\Windows\CurrentVersion\Run"#, "/v", "Steam", "/f"])
+
+        XCTAssertFalse(SteamClient.isInstalled(in: prefix))
+        let exe = SteamClient.executable(in: prefix)
+        try Fixtures.write(exe, Fixtures.makePE(imports: ["KERNEL32.dll", "steam_api.dll"]))
+        XCTAssertTrue(SteamClient.isInstalled(in: prefix))
+        let plan = try launcher.steamClientPlan(prefix: prefix, arguments: ["-silent"])
+        XCTAssertEqual(plan.backend, .dxmt)
+        XCTAssertEqual(plan.arguments, [exe.path, "-no-cef-sandbox", "-silent"])
+        XCTAssertFalse(plan.notes.contains { $0.contains("steam_appid.txt") })
+        XCTAssertEqual(try launcher.steamClientPlan(prefix: prefix, options: LaunchOptions(backend: .wined3d)).backend, .wined3d)
+    }
+
     /// Release archives extract into a wrapper folder; `runtime add` should look inside it.
     func testRuntimeRootFoundInsideWrapperFolder() throws {
         let wineWrapper = paths.root.appendingPathComponent("dl/wine-devel-11.18")

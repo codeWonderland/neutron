@@ -94,9 +94,10 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
       *(Done with `tools/wine-dxmt/winemac-remote-metal.patch` + `tools/dxmt-patch/
       cross-process-swapchain.patch`, reusing Wine 11's CAContext swapchain; Steam's sign-in
       window renders. Child windows are hosted full-size in their top-level window.)*
-- [ ] `neutron steam install`: Windows Steam in a shared prefix
-      *(installs, updates and shows its sign-in window with the patched Wine + DXMT; remove its
-      `HKCU\...\Run` autostart, which `wineboot` would start without the backend's environment)*
+- [x] `neutron steam install`: Windows Steam in a shared prefix; `neutron steam` starts it
+      *(installs, updates and shows its sign-in window with the patched Wine + DXMT; removes its
+      `HKCU\...\Run` autostart, which `wineboot` would start without the backend's environment.
+      The first self-update sometimes crashes in Steam's downloader; a second launch finishes)*
 - [ ] Find installed games through `steamapps/appmanifest_*.acf`; launch by app ID
 - [ ] Stretch: read the native macOS Steam library and offer the Windows build of non-Mac games
 

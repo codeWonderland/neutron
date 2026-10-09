@@ -98,6 +98,10 @@ neutron detect ~/Games/MyGame/MyGame.exe     # shows engine, graphics APIs and t
 neutron run ~/Games/MyGame/MyGame.exe --hud  # auto-picks a backend; --backend to override
 neutron run game.exe --dry-run               # print the env and command instead of running
 
+# Steam for Windows (needs the tools/wine-dxmt + tools/dxmt-patch builds; see below)
+neutron steam install          # into prefix "steam"; downloads SteamSetup.exe
+neutron steam                  # first run downloads the client and restarts itself
+
 # Pin runtime versions per prefix (e.g. to compare DXMT builds); `newest` unpins
 neutron prefix set-runtime default dxmt dxmt-v0.80
 
@@ -123,6 +127,16 @@ seconds the first time; inside Wine it would take over a minute). Without it tho
 
 Steam games usually need a `steam_appid.txt` containing the game's app ID next to the
 `.exe` when Steam isn't running.
+
+## Steam
+
+`neutron steam install` creates a `steam` prefix, downloads Valve's installer, installs Steam
+silently and removes its "start at login" entry (Wine would otherwise start Steam during
+`wineboot` without DXMT, leaving a black window). `neutron steam` starts the client on DXMT.
+Its UI is Chromium, which renders from a separate GPU process, so it only shows up with a Wine
+built by `tools/wine-dxmt/build.sh` and a DXMT built by `tools/dxmt-patch/build.sh`. Steam
+sometimes crashes during its first self-update; run `neutron steam` again. Launching games
+from Steam's library is the next Phase 3 step.
 
 ## How backends are applied
 

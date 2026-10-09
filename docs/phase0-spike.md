@@ -153,6 +153,18 @@ a prefix in seconds, and the first `Steam.exe` run downloads and installs the cl
 Steam's own logs (`Steam/logs/webhelper.txt`, `cef_log.txt`) are the place to start. Note
 the updater exits and relaunches Steam, so the launched process "ends" after updating.
 
+**Root cause (rechecked 2026-10-09 on Wine 11.18 with all `tools/wine-dxmt` patches and the
+patched DXMT):** Steam's Chromium always runs a separate GPU process that renders into a
+window owned by the browser process. DXMT logs `CreateSwapChain: cross-process swapchain not
+supported yet` (also on DXMT main), ANGLE's `SwapChain11::reset` then fails with E_FAIL →
+`EGL_BAD_ALLOC`, and the window stays empty. Things that don't get around it: Steam's
+`-cef-disable-d3d11`, `-cef-in-process-gpu` and `-cef-single-process` aren't passed to Chromium;
+injecting `--in-process-gpu` or `--single-process` into `steamwebhelper.exe` with a wrapper
+reaches the process but this CEF build still spawns its GPU process. wined3d's black window is
+plausibly the same cross-process problem in winemac (window surfaces are per process).
+Running Steam needs cross-process presentation: winemac hosting another process's Metal layer
+(e.g. `CALayerHost`/remote layers) plus DXMT support. That's the Phase 3 blocker.
+
 ### Diagnoses (2026-10-09)
 
 - **Timberborn** (Unity 6000.5): the hang is its 110 s intro video. With the video moved

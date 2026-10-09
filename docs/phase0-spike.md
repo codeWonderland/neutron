@@ -83,9 +83,22 @@ feature level 9.3, while DXMT reports the real Apple GPU.
       `macdrv_functions` (or the `macdrv_view_*_metal_*` functions) in `winemac.so`
       (`nm -gU winemac.so | grep macdrv_` to check). `d3dprobe` only creates a device, so it
       can't catch this; check with a real windowed game.
-- [ ] D3DMetal: with GPTK registered, does `d3dprobe64.exe 12` create a device? Neutron
-      overlays `redist/lib/wine/*` into `lib/wine/` and `redist/lib/external/` into
-      `lib/external/`. Check with `otool -L` how GPTK's `.so` files find `D3DMetal.framework`.
+- [x] **D3DMetal works through Neutron on a CrossOver-based Wine** (Sikarugir CX 24.0.7,
+      D3DMetal from Gcenx's game-porting-toolkit 3.0-3 build): `d3dprobe64.exe 12` creates
+      a D3D12 device, D3D11 runs too (adapter "AMD Compatibility Mode"), and Berry Bounce
+      renders. Layout: `lib/wine/x86_64-unix/{d3d10,d3d11,d3d12,dxgi,nvapi64,nvngx,
+      nvngx-on-metalfx,atidxx64}.so` are symlinks to `../../external/libd3dshared.dylib`,
+      which loads `external/D3DMetal.framework`; the matching PE DLLs sit in
+      `lib/wine/x86_64-windows`. Neutron overlays only those files plus `external/`.
+- [x] **D3DMetal does not run on Wine 10+.** Its DLLs import `ntdll.__wine_unix_call`, which
+      Wine dropped (11.18 has only `__wine_unix_call_dispatcher`). Re-exporting it gets
+      D3DMetal loading, but it then crashes in `pthread_self`/`pthread_setname_np` (null
+      thread pointer): it expects the older thread-register handling. Neutron now reads each
+      Wine build's exports (`WineCapabilities`) and falls back to DXMT when the Wine can't
+      run D3DMetal.
+- [x] **Unity doesn't get D3D12 from D3DMetal.** Unity 6 tries D3D12 first and logs
+      "failed to create D3D11On12 device (0x887a0004)", then falls back to D3D11. So Unity
+      games always go to DXMT; only Unreal games with the Agility SDK prefer D3DMetal.
 
 ## 3. Test games
 
@@ -120,6 +133,21 @@ For each game, try every backend that applies and note the results.
 
 These only show that device creation works, not that games run.
 
+### Unreal 5 prerequisites and Steam (Needle In A Haystack, UE 5.3)
+
+- The stub (`BootstrapPackagedGame`) checks
+  `HKLM\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64` (`Major`/`Minor`/`Bld`/
+  `Rbld`), `msvcp140_2.dll`, `vcruntime140_1.dll` and `XINPUT1_3.DLL`, and otherwise shows
+  "The following component(s) are required… Microsoft Visual C++ Runtime". Wine provides the
+  DLLs but not the registry key. The game's own `Engine/Extras/Redist/en-us/UEPrereqSetup_x64.exe
+  /quiet` installs VC++ 14.36, still below what this build wants; the check passed only with
+  a newer version in the registry. Candidate for the Phase 2 database (or an engine rule).
+- After that the Shipping exe calls `steam://run/<appid>` and exits, even with
+  `steam_appid.txt` beside it: Unreal's Steam subsystem relaunches through the Steam client.
+  Steam-integrated Unreal games need Phase 3 (Windows Steam in the prefix).
+- The CrossOver engine runs Wine processes from `$TMPDIR/winetemp-*`; `pkill wineserver`
+  doesn't stop them. Neutron needs a `kill` command that uses the runtime's `wineserver -k`.
+
 ### Detection scan
 
 `neutron detect` on every exe in a 105-game Steam library (164 exes; exe + sibling DLLs
@@ -151,5 +179,7 @@ renderer at runtime (Fortune Mill, CosmosKitten…) fall to wined3d.
 | Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 (auto: d3dmetal → no GPTK → dxmt + `-force-d3d11`) | Renders, but **no mouse input** | not measured | `steam_appid.txt` (4454860) | Player.log: "EnableMouseInPointer failed … Call not implemented" (Wine 9 stub). `ID3D11Fence` creation fails (0x80004005), game continues |
 | Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot), mouse clicks work (checked by hand) | not measured | `steam_appid.txt` | No `EnableMouseInPointer` error |
 | Loop Tower Demo | D3D11 | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot) | not measured | `steam_appid.txt` | |
+| Berry Bounce (Unity 6000.3.0f1) | D3D11 (Unity's D3D12 path needs D3D11On12) | M1 / 15.5 | d3dmetal (GPTK 3.0-3) on Sikarugir CX 24.0.7_7 | Renders (screenshot); no mouse input (Wine 9) | not measured | `steam_appid.txt` | Adapter "AMD Compatibility Mode" |
+| Needle In A Haystack (UE 5.3) | D3D12 | M1 / 15.5 | d3dmetal on Sikarugir CX 24.0.7_7 | **No**: relaunches via `steam://` | | VC++ registry key ≥ the build's toolset; Steam client | See "Unreal 5 prerequisites and Steam" |
 
 Rows here become the first entries in the Phase 2 compatibility database.

@@ -38,6 +38,9 @@ public struct LaunchOptions: Sendable {
 public struct Launcher: Sendable {
     public let runtimes: RuntimeStore
 
+    /// How to read a Wine build's capabilities; replaceable in tests.
+    var capabilities: @Sendable (Runtime) -> WineCapabilities = { WineCapabilities(wine: $0) }
+
     public init(runtimes: RuntimeStore) {
         self.runtimes = runtimes
     }
@@ -55,10 +58,20 @@ public struct Launcher: Sendable {
         // Engine flags apply to explicit backends too, so scan whenever the file is readable.
         let scan = chosen == nil ? try GameScan(executable: program) : try? GameScan(executable: program)
         var backend = chosen ?? scan!.recommendation.backend
+        let wine = try runtimes.find(.wine, version: prefix.config.wineVersion)
+        let capabilities = self.capabilities(wine)
         if chosen == nil, let fallback = scan?.recommendation.fallback,
-           !isAvailable(backend), isAvailable(fallback) {
-            notes.append("no \(backend.requiredRuntime?.rawValue ?? backend.rawValue) runtime registered; using \(fallback.rawValue) instead of \(backend.rawValue)")
-            backend = fallback
+           isAvailable(fallback), capabilities.supports(fallback) {
+            if !isAvailable(backend) {
+                notes.append("no \(backend.requiredRuntime?.rawValue ?? backend.rawValue) runtime registered; using \(fallback.rawValue) instead of \(backend.rawValue)")
+                backend = fallback
+            } else if let problem = capabilities.problem(with: backend) {
+                notes.append("using \(fallback.rawValue) instead of \(backend.rawValue): wine \(wine.version) can't run \(backend.rawValue); \(problem)")
+                backend = fallback
+            }
+        }
+        if let problem = capabilities.problem(with: backend) {
+            notes.append("warning: wine \(wine.version) probably can't run \(backend.rawValue): \(problem)")
         }
         let runtime = try backend.requiredRuntime.map { try runtimes.find($0) }
         let setup = try BackendSetup.make(for: backend, runtime: runtime)

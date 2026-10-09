@@ -79,8 +79,43 @@ final class ComposedRuntimeTests: XCTestCase {
         try write("", to: prefix.appendingPathComponent("drive_c/windows/syswow64/d3d11.dll"))
 
         XCTAssertEqual(composed.missingPrefixDLLs(winePrefix: prefix), [
-            "drive_c/windows/syswow64/winemetal.dll",
             "drive_c/windows/system32/winemetal.dll",
+            "drive_c/windows/syswow64/winemetal.dll",
         ])
+    }
+
+    /// A whole Wine build registered as GPTK (like Gcenx's game-porting-toolkit): only
+    /// D3DMetal's files may be overlaid, not the build's own Wine DLLs.
+    func testGPTKOverlayTakesOnlyD3DMetalFiles() throws {
+        let (wine, _) = try makeRuntimes()
+        let lib = paths.root.appendingPathComponent("builds/gptk/lib")
+        try write("gptk d3d12", to: lib.appendingPathComponent("wine/x86_64-windows/d3d12.dll"))
+        try write("gptk kernel32", to: lib.appendingPathComponent("wine/x86_64-windows/kernel32.dll"))
+        try write("gptk d3d9 32-bit", to: lib.appendingPathComponent("wine/i386-windows/d3d9.dll"))
+        try write("gptk ntdll", to: lib.appendingPathComponent("wine/x86_64-unix/ntdll.so"))
+        try write("gptk wpcap", to: lib.appendingPathComponent("wine/x86_64-windows/wpcap.dll"))
+        try write("gptk wpcap unix", to: lib.appendingPathComponent("wine/x86_64-unix/wpcap.so"))
+        try write("shared", to: lib.appendingPathComponent("external/libd3dshared.dylib"))
+        try write("framework", to: lib.appendingPathComponent("external/D3DMetal.framework/D3DMetal"))
+        try FileManager.default.createDirectory(at: lib.appendingPathComponent("wine/x86_64-unix"), withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(atPath: lib.appendingPathComponent("wine/x86_64-unix/d3d12.so").path,
+                                                   withDestinationPath: "../../external/libd3dshared.dylib")
+        let gptk = Runtime(kind: .gptk, version: "3.0", path: lib)
+        let composed = ComposedRuntime(wine: wine, backend: gptk, paths: paths)
+        try composed.build()
+
+        let root = composed.path
+        XCTAssertEqual(try read(root.appendingPathComponent("lib/wine/x86_64-windows/d3d12.dll")), "gptk d3d12")
+        XCTAssertEqual(try read(root.appendingPathComponent("lib/wine/x86_64-windows/kernel32.dll")), "wine kernel32")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("lib/wine/i386-windows/d3d9.dll").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("lib/wine/x86_64-unix/ntdll.so").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent("lib/wine/x86_64-windows/wpcap.dll").path))
+        let link = root.appendingPathComponent("lib/wine/x86_64-unix/d3d12.so")
+        XCTAssertEqual(try FileManager.default.destinationOfSymbolicLink(atPath: link.path), "../../external/libd3dshared.dylib")
+        XCTAssertEqual(try read(link), "shared")
+        XCTAssertEqual(try read(root.appendingPathComponent("lib/external/D3DMetal.framework/D3DMetal")), "framework")
+
+        let prefix = paths.root.appendingPathComponent("pfx")
+        XCTAssertEqual(composed.missingPrefixDLLs(winePrefix: prefix), ["drive_c/windows/system32/d3d12.dll"])
     }
 }

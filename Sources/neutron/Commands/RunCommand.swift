@@ -72,7 +72,7 @@ struct DetectCommand: ParsableCommand {
         let pick = scan.recommendation
         print("backend: \(pick.backend.rawValue) (\(pick.reason))")
         if let fallback = pick.fallback {
-            print("  fallback: \(fallback.rawValue) when no \(pick.backend.requiredRuntime?.rawValue ?? "") runtime is registered")
+            print("  fallback: \(fallback.rawValue) when no \(pick.backend.requiredRuntime?.rawValue ?? "") runtime is registered or the Wine can't run \(pick.backend.rawValue)")
         }
         if let engine = scan.engine?.engine {
             let flags = engine.arguments(for: pick.fallback ?? pick.backend, userArguments: [])

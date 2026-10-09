@@ -14,8 +14,11 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
   mouse input). The README's "What you need" lists where every dependency comes from.
 - Engine-aware detection is built and checked against a real 105-game library
   (`docs/phase0-spike.md`). Godot and other runtime-loading engines still fall to wined3d.
-- **Still unverified:** GPTK/D3DMetal (layout, `lib/external` overlay, D3D12) and D3D9 or
-  32-bit games. Don't build on those assumptions until tested.
+- D3DMetal is verified on a CrossOver-based Wine 9 (Sikarugir CX 24) but can't run on Wine
+  10+; `WineCapabilities.swift` reads each Wine build's exports and the launcher falls back
+  to DXMT. Unity games never get D3D12 from D3DMetal (no D3D11On12), so they go to DXMT.
+- **Still unverified:** D3D9 and 32-bit games; Steam-integrated games need the Steam client
+  (Phase 3). Don't build on those assumptions until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
   claim a game works unless it was actually run.
@@ -57,6 +60,8 @@ every push and PR. There is no linter configured.
    with the backend copied into `lib/wine/<arch>`, cached in `runtimes/composed/`).
    `Launcher.run` builds it on demand and runs `wineboot -u` if the prefix lacks any of the
    backend's DLLs; Wine only loads a builtin that has a copy in `system32`/`syswow64`.
+   Before that, `WineCapabilities` (exports of the Wine build's `winemac.so`/`ntdll.dll`)
+   can swap an auto-picked backend for its fallback, or add a warning note.
 4. **Env**: `winePlan` merges in this order: Neutron defaults (`WINEPREFIX`,
    `WINEDEBUG=-all`, `WINEMSYNC=1`, `MVK_CONFIG_LOG_LEVEL=1`, plus
    `DYLD_FALLBACK_LIBRARY_PATH` from the Wine runtime's `libraryPaths`) → backend env → prefix

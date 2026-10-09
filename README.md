@@ -31,7 +31,7 @@ with `neutron runtime add`:
 | Rosetta 2 | `softwareupdate --install-rosetta` | Runs Wine's x86_64 code |
 | Wine | [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds/releases) (`wine-devel-*-osx64.tar.xz`) | Works as-is for wined3d. **For DXMT, patch it** with `tools/wine-dxmt/build.sh` (below) |
 | DXMT | [3Shain/dxmt releases](https://github.com/3Shain/dxmt/releases) (`dxmt-*-builtin.tar.gz`) | D3D10/11 → Metal. Point `runtime add` at the extracted folder |
-| Game Porting Toolkit (D3DMetal) | [Apple Developer](https://developer.apple.com/games/game-porting-toolkit/) (free Apple ID) | Optional; for D3D12 games. Never redistributed by Neutron. Not tested yet |
+| Game Porting Toolkit (D3DMetal) | [Apple Developer](https://developer.apple.com/games/game-porting-toolkit/) (free Apple ID) | Optional; for D3D12 games (Unreal 5). Never redistributed by Neutron. Only runs on a CrossOver-based Wine 9 or older (see below) |
 
 ### A Wine that works with DXMT
 
@@ -54,7 +54,9 @@ input support (`EnableMouseInPointer`). CrossOver-based builds also work with DX
 example Sikarugir's `WS12WineCX24.0.7` engine from
 [Sikarugir-App/Engines](https://github.com/Sikarugir-App/Engines/releases), registered
 with `--library-path <Sikarugir Template.app>/Contents/Frameworks` for the libraries it
-expects from its wrapper. That one is based on Wine 9, so Unity 6 games get no mouse input.
+expects from its wrapper. That one is based on Wine 9, so Unity 6 games get no mouse input, but it is also the kind
+of Wine D3DMetal needs: D3DMetal doesn't run on Wine 10 or later. Neutron checks what each
+Wine build supports and falls back to DXMT (with a note) when it can't run D3DMetal.
 
 ## Quick start
 

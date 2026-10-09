@@ -80,6 +80,20 @@ final class StoreTests: XCTestCase {
         XCTAssertNil(plan.composition)
     }
 
+    func testKillPlanUsesPrefixWineserverAndEnvironment() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        let frameworks = paths.root.appendingPathComponent("Frameworks")
+        try FileManager.default.createDirectory(at: frameworks, withIntermediateDirectories: true)
+        try runtimes.add(kind: .wine, path: makeWine("cx24"), libraryPaths: [frameworks])
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "steam"))
+        let plan = try Launcher(runtimes: runtimes).killPlan(prefix: prefix)
+        XCTAssertEqual(plan.executable.path, paths.root.appendingPathComponent("builds/cx24/bin/wineserver").path)
+        XCTAssertEqual(plan.arguments, ["-k"])
+        XCTAssertEqual(plan.environment["WINEPREFIX"], prefix.winePrefix.path)
+        XCTAssertEqual(plan.environment["DYLD_FALLBACK_LIBRARY_PATH"], frameworks.path)
+        XCTAssertNil(plan.composition)
+    }
+
     func testDXMTPlanUsesComposedWine() throws {
         let runtimes = RuntimeStore(paths: paths)
         try runtimes.add(kind: .wine, path: makeWine("10.2"))

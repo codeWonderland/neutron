@@ -207,6 +207,11 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   Desktop Defender, Fortune Mill, Loop Tower, Snake Farm, Timberborn, You Know The Drill;
   unchanged known failures: Idle Colony (GL 3.3 compatibility profile) and the ghost-vacuum
   demo (mostly black scene, same on DXVK).
+- **32-bit and D3D9**: no 32-bit Windows game in the library. Terraria's desktop install is
+  the Linux FNA build (`lib64/libFNA3D.so.0`), and BeamNG's 32-bit exe is only a launcher.
+  `d3dprobe32` on the current Wine build: D3D9 on wined3d (device, clear, present), D3D11 on
+  DXMT (Apple M1, FL 11.0, timestamps OK) and D3D11 on wined3d (FL 9.3) all work. Still
+  unverified with a real game.
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
   The Windows build can't be judged from it.
@@ -231,11 +236,16 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   - D3D11 on DXMT asserts in `FD3D11DynamicRHI::PollQueryResults` (`TOptional<FTimestampCalibration>`
     unset). Not DXMT's timestamp queries themselves: `d3dprobe timestamp` gets
     `TIMESTAMP_DISJOINT` at 1 GHz, never disjoint, and sane begin/end deltas. Satisfactory's
-    D3D11 RHI loads `nvapi64.dll` (DXMT ships a shim) and has an NVIDIA-only switch that turns
-    timestamp queries off ("disabled on this hardware due to instability",
-    `r.NVIDIATimestampWorkaround`), a plausible way to end up without a calibration. Untested
-    (29 GB, doesn't fit now). To try: `neutron prefix set-env <p> WINEDLLOVERRIDES=nvapi64=d`,
-    or `-ini:Engine:[SystemSettings]:r.NVIDIATimestampWorkaround=0`.
+    D3D11 RHI has an NVIDIA-only timestamp switch and loads `nvapi64.dll` (DXMT ships a shim),
+    but neither is the cause: retested 2026-10-09 (11.9 GB copy without `.pdb` files) with
+    `nvapi64`/`nvngx` disabled, with `r.GPUStatsEnabled=0`, `r.NVIDIATimestampWorkaround=0`,
+    `r.GPUCrashDebugging=0`, and on DXMT main (e94c312f): the same assert on the RHI thread
+    ~18 s in every time. Some D3D11 behaviour UE 5's calibration relies on is still missing.
+  - `-vulkan` (Wine's winevulkan → MoltenVK, no Direct3D layer) gets much further (engine,
+    menus and online services initialise) and then fails `vkCreateImage` with
+    VK_ERROR_FEATURE_NOT_PRESENT: MoltenVK says "Metal does not allow uncompressed views of
+    compressed images", and 16 compute shaders fail SPIR-V→MSL ("Unexpected argument buffer
+    resource base type"). Same with `-sm5`. A MoltenVK/Metal limit.
   - Default RHI on Wine 11 (D3D12): "Failed to choose a D3D12 Adapter" on vkd3d, then the
     same D3D11 assert.
   - D3D12 on D3DMetal (CrossOver 24): "Assertion failed: GGlobalSamplerDescriptorHeapSize <=

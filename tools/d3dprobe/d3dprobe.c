@@ -6,6 +6,8 @@
 //   d3dprobe.exe 9      D3D9 device (HAL, hidden window) + adapter info
 //   d3dprobe.exe shared D3D11 shared texture: GetSharedHandle on one device, open on another
 //                       (what Media Foundation video playback in Unity relies on)
+//   d3dprobe.exe timestamp  D3D11 timestamp + disjoint queries around a clear (what Unreal's GPU
+//                       timing and its timestamp calibration rely on)
 //
 // Exit code 0 means the device was created.
 #define COBJMACROS
@@ -145,10 +147,64 @@ static int probe_shared(void) {
     return failures ? 1 : 0;
 }
 
+static HRESULT wait_data(ID3D11DeviceContext *context, ID3D11Query *query, void *data, UINT size) {
+    HRESULT hr = S_FALSE;
+    for (int i = 0; i < 2000 && hr == S_FALSE; i++) {
+        hr = ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)query, data, size, 0);
+        if (hr == S_FALSE) Sleep(1);
+    }
+    return hr;
+}
+
+static int probe_timestamp(void) {
+    ID3D11Device *device = NULL;
+    ID3D11DeviceContext *context = NULL;
+    if (FAILED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION,
+                                 &device, NULL, &context))) { printf("D3D11CreateDevice failed\n"); return 1; }
+    D3D11_QUERY_DESC disjoint_desc = {D3D11_QUERY_TIMESTAMP_DISJOINT, 0}, ts_desc = {D3D11_QUERY_TIMESTAMP, 0};
+    ID3D11Query *disjoint = NULL, *begin = NULL, *end = NULL;
+    HRESULT hr = ID3D11Device_CreateQuery(device, &disjoint_desc, &disjoint);
+    printf("CreateQuery(TIMESTAMP_DISJOINT) 0x%08lx\n", (unsigned long)hr);
+    hr = ID3D11Device_CreateQuery(device, &ts_desc, &begin);
+    printf("CreateQuery(TIMESTAMP)          0x%08lx\n", (unsigned long)hr);
+    ID3D11Device_CreateQuery(device, &ts_desc, &end);
+    if (!disjoint || !begin || !end) return 1;
+
+    D3D11_TEXTURE2D_DESC desc = {256, 256, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, {1, 0}, D3D11_USAGE_DEFAULT,
+                                 D3D11_BIND_RENDER_TARGET, 0, 0};
+    ID3D11Texture2D *texture = NULL;
+    ID3D11RenderTargetView *rtv = NULL;
+    ID3D11Device_CreateTexture2D(device, &desc, NULL, &texture);
+    ID3D11Device_CreateRenderTargetView(device, (ID3D11Resource *)texture, NULL, &rtv);
+    float color[4] = {1, 0, 0, 1};
+
+    int failures = 0;
+    for (int frame = 0; frame < 3; frame++) {
+        ID3D11DeviceContext_Begin(context, (ID3D11Asynchronous *)disjoint);
+        ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)begin);
+        for (int i = 0; i < 100; i++) ID3D11DeviceContext_ClearRenderTargetView(context, rtv, color);
+        ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)end);
+        ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)disjoint);
+        ID3D11DeviceContext_Flush(context);
+
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT dj = {0};
+        UINT64 t0 = 0, t1 = 0;
+        HRESULT h0 = wait_data(context, disjoint, &dj, sizeof(dj));
+        HRESULT h1 = wait_data(context, begin, &t0, sizeof(t0));
+        HRESULT h2 = wait_data(context, end, &t1, sizeof(t1));
+        printf("frame %d: disjoint 0x%08lx freq %llu disjoint=%d; begin 0x%08lx %llu; end 0x%08lx %llu; delta %lld\n",
+               frame, (unsigned long)h0, (unsigned long long)dj.Frequency, dj.Disjoint, (unsigned long)h1,
+               (unsigned long long)t0, (unsigned long)h2, (unsigned long long)t1, (long long)(t1 - t0));
+        if (h0 != S_OK || h1 != S_OK || h2 != S_OK || !dj.Frequency || dj.Disjoint || t1 < t0) failures++;
+    }
+    return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv) {
     const char *mode = argc > 1 ? argv[1] : "11";
     int result = strcmp(mode, "12") == 0 ? probe_d3d12() : strcmp(mode, "9") == 0 ? probe_d3d9()
-               : strcmp(mode, "shared") == 0 ? probe_shared() : probe_d3d11();
+               : strcmp(mode, "shared") == 0 ? probe_shared()
+               : strcmp(mode, "timestamp") == 0 ? probe_timestamp() : probe_d3d11();
     printf("modules:\n");
     print_module("d3d11.dll");
     print_module("d3d12.dll");

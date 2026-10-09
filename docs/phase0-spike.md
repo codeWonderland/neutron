@@ -229,7 +229,13 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   Neutron now passes the project folder (the one with `Content/Paks`) when it skips a stub.
   After that:
   - D3D11 on DXMT asserts in `FD3D11DynamicRHI::PollQueryResults` (`TOptional<FTimestampCalibration>`
-    unset): DXMT has no GPU timestamp calibration.
+    unset). Not DXMT's timestamp queries themselves: `d3dprobe timestamp` gets
+    `TIMESTAMP_DISJOINT` at 1 GHz, never disjoint, and sane begin/end deltas. Satisfactory's
+    D3D11 RHI loads `nvapi64.dll` (DXMT ships a shim) and has an NVIDIA-only switch that turns
+    timestamp queries off ("disabled on this hardware due to instability",
+    `r.NVIDIATimestampWorkaround`), a plausible way to end up without a calibration. Untested
+    (29 GB, doesn't fit now). To try: `neutron prefix set-env <p> WINEDLLOVERRIDES=nvapi64=d`,
+    or `-ini:Engine:[SystemSettings]:r.NVIDIATimestampWorkaround=0`.
   - Default RHI on Wine 11 (D3D12): "Failed to choose a D3D12 Adapter" on vkd3d, then the
     same D3D11 assert.
   - D3D12 on D3DMetal (CrossOver 24): "Assertion failed: GGlobalSamplerDescriptorHeapSize <=

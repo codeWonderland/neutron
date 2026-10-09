@@ -92,6 +92,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [ ] Code signing, notarization, Homebrew cask
 - [ ] Crash/diagnostic bundle (`neutron bug-report`)
 - [ ] Automated smoke tests on free games (launch, screenshot, check for a non-black frame)
+      *(`tools/smoke/smoke.sh` does one game locally; still needs a game list and CI/runner)*
 
 ## Risks
 

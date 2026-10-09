@@ -184,6 +184,20 @@ with a DXMT fallback; 18 Unity 2018–2023 / UE4 games (and Unity 6 builds witho
 once the EOS SDK DLL is ignored. Still unhandled: Godot and other engines that load their
 renderer at runtime (Fortune Mill, CosmosKitten…) fall to wined3d.
 
+### Smoke baseline
+
+`tools/smoke/smoke.sh` per game (patched Gcenx 11.18 + DXMT v0.80, M1, macOS 15.5);
+see the games table for details. 2026-10-09:
+
+| Result | Game | Non-black % |
+|---|---|---|
+| PASS | Loop Tower Demo, Desktop Defender, SNAKE FARM, Dark Deity, A Game About Digging A Hole | 98–100 |
+| PASS | Fortune Mill | 81 |
+| PASS | Berry Bounce | 45 |
+| PASS | Cosmos Kitten, You Know The Drill Demo (dark title screens) | 13–17 |
+| FAIL | Idle Colony | error dialog "Wine C++ Runtime Library" |
+| FAIL | CATR | exits during load |
+
 ### Games
 
 | Game | API | Mac / macOS | Backend | Works? | FPS | Env / fixes needed | Notes |

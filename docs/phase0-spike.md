@@ -137,6 +137,22 @@ For each game, try every backend that applies and note the results.
 
 These only show that device creation works, not that games run.
 
+### Windows Steam (Phase 3 groundwork, 2026-10-09)
+
+`SteamSetup.exe /S` (from `cdn.cloudflare.steamstatic.com/client/installer/`) installs into
+a prefix in seconds, and the first `Steam.exe` run downloads and installs the client
+(~1.4 GB), then restarts itself ("Update complete, launching Steam..."). After that:
+
+| Wine | Backend / flags | Result |
+|---|---|---|
+| Gcenx 11.18 + `tools/wine-dxmt` | wined3d (default) | "Sign in to Steam" window (700×440) appears but is **solid black**; `cef_log.txt` shows the login page's JS running |
+| same | wined3d, `-cef-disable-gpu -cef-disable-gpu-compositing -no-cef-sandbox` | Same black window |
+| same | dxmt | Login window created but never shown (`webhelper.txt`: position 805240832,805240832, i.e. `CW_USEDEFAULT` misread) |
+| Sikarugir CX 24.0.7_7 | wined3d | steamwebhelper starts; no login window within 2 minutes |
+
+Steam's own logs (`Steam/logs/webhelper.txt`, `cef_log.txt`) are the place to start. Note
+the updater exits and relaunches Steam, so the launched process "ends" after updating.
+
 ### Godot
 
 Godot executables contain `https://godotengine.org` and a version string such as

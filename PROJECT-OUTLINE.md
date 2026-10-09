@@ -79,6 +79,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 
 ### Phase 3: Steam integration
 - [ ] `neutron steam install`: Windows Steam in a shared prefix
+      *(installs and updates; the sign-in window renders black, see spike doc)*
 - [ ] Find installed games through `steamapps/appmanifest_*.acf`; launch by app ID
 - [ ] Stretch: read the native macOS Steam library and offer the Windows build of non-Mac games
 

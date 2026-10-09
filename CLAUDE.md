@@ -5,8 +5,9 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
 
 ## Current state: read first
 
-- **The Phase 1 code was written on Linux and has never been compiled.** Before any feature
-  work, run `swift build` and `swift test` and fix what breaks. Expect small Swift errors.
+- The Phase 1 code was written on Linux. It builds and its 13 unit tests pass in CI
+  (macos-15), but it has **never been run against real Wine, DXMT or GPTK**. Start by
+  running `swift build && swift test` locally, then move on to the Phase 0 spike.
 - Several layout and loading assumptions are unverified guesses, all listed in
   `docs/phase0-spike.md`. The big one: DXMT and D3DMetal are applied through `WINEDLLPATH` +
   builtin overrides (`Sources/NeutronCore/Backend.swift`). Verify on real hardware with

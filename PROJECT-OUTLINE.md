@@ -37,7 +37,8 @@ backend's files overlaid), which only changes `BackendSetup`.
 
 ### Phase 0: Spike (hands-on, real hardware)
 Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
-- [ ] First `swift build` / `swift test` on macOS (the code was written on Linux and never compiled)
+- [x] First `swift build` / `swift test` on macOS (passing in CI, macos-15)
+- [ ] Local build and test on both Macs
 - [ ] Gather Wine (wow64 + msync), DXMT and GPTK; record their exact folder layouts
 - [ ] Verify the WINEDLLPATH approach for DXMT and D3DMetal, or switch to composed runtimes
 - [ ] Run one D3D9, D3D11, D3D12 and 32-bit game; fill in the results table

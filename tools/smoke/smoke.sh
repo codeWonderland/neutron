@@ -1,7 +1,8 @@
 #!/bin/sh
 # Smoke test: launch a Windows program through Neutron, wait, capture its window, stop the
 # prefix, and report PASS when a window shows something other than black and no Wine error
-# dialog (assertion box, crash report, ...) is up.
+# dialog (assertion box, crash report, ...) is up. A window smaller than 640x360 is reported
+# as SPLASH (a launcher splash that never gave way to the game), not PASS.
 #
 #   tools/smoke/smoke.sh <prefix> <exe> [seconds=45] [neutron run options...] [-- program args]
 #
@@ -29,8 +30,12 @@ for attempt in 1 2 3 4; do
   shot=$("$winshot" "$out/window.png" 2>&1)
   state=$(kill -0 $pid 2>/dev/null && echo running || echo exited)
   lit=$(echo "$shot" | head -1 | awk '{print $2}')
+  size=$(echo "$shot" | head -1 | awk '{print $3}')
+  width=${size%x*} height=${size#*x}
   if echo "$shot" | grep -q "^dialog:"; then break; fi   # an error dialog is showing
-  if [ "$state" = running ] && [ -n "$lit" ] && [ "$lit" -ge 5 ] 2>/dev/null; then result=PASS; break; fi
+  if [ "$state" = running ] && [ -n "$lit" ] && [ "$lit" -ge 5 ] 2>/dev/null; then
+    if [ "$width" -lt 640 ] 2>/dev/null || [ "$height" -lt 360 ] 2>/dev/null; then result=SPLASH; else result=PASS; break; fi
+  fi
   [ "$state" = exited ] && break
   sleep 5
 done

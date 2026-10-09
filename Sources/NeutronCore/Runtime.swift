@@ -154,6 +154,19 @@ public struct RuntimeStore: Sendable {
         try save(all)
     }
 
+    /// Sets (or with nil, clears) the GStreamer install of a registered Wine.
+    @discardableResult
+    public func setGStreamer(wineVersion: String, gstreamer: URL?) throws -> Runtime {
+        let root = try gstreamer.map { try Runtime.resolveGStreamer(at: $0.standardizedFileURL) }
+        var all = try list()
+        guard let index = all.firstIndex(where: { $0.kind == .wine && $0.version == wineVersion }) else {
+            throw NeutronError.runtimeNotFound(.wine, version: wineVersion)
+        }
+        all[index].gstreamer = root
+        try save(all)
+        return all[index]
+    }
+
     /// The requested version, or the newest registered one when `version` is nil.
     public func find(_ kind: RuntimeKind, version: String? = nil) throws -> Runtime {
         let matching = try list().filter { $0.kind == kind }

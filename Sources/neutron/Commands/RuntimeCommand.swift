@@ -6,7 +6,7 @@ struct RuntimeCommand: ParsableCommand {
     static let configuration = CommandConfiguration(
         commandName: "runtime",
         abstract: "Register Wine, DXMT and Game Porting Toolkit builds.",
-        subcommands: [Add.self, List.self, Remove.self]
+        subcommands: [Add.self, List.self, Remove.self, SetGStreamer.self]
     )
 
     struct Add: ParsableCommand {
@@ -66,6 +66,25 @@ struct RuntimeCommand: ParsableCommand {
         func run() throws {
             try Env.runtimes.remove(kind: kind, version: version)
             print("Removed \(kind.rawValue) \(version).")
+        }
+    }
+
+    struct SetGStreamer: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            commandName: "set-gstreamer",
+            abstract: "Set the GStreamer install a registered Wine uses for in-game video, or `none`."
+        )
+
+        @Argument(help: "The Wine runtime's version label (see `neutron runtime list`).")
+        var version: String
+
+        @Argument(help: "A GStreamer install, e.g. /Library/Frameworks/GStreamer.framework, or `none`.")
+        var path: String
+
+        func run() throws {
+            let runtime = try Env.runtimes.setGStreamer(wineVersion: version,
+                                                        gstreamer: path == "none" ? nil : URL(fileURLWithPath: path))
+            print(runtime.gstreamer.map { "wine \(version) uses GStreamer at \($0.path)." } ?? "wine \(version) has no GStreamer.")
         }
     }
 }

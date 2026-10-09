@@ -170,6 +170,15 @@ final class StoreTests: XCTestCase {
         let launcher = Launcher(runtimes: runtimes)
         XCTAssertEqual(try launcher.winePlan(prefix: prefix, arguments: [], options: LaunchOptions()).gstreamerScan, inspect)
         XCTAssertNil(try launcher.killPlan(prefix: prefix).gstreamerScan)
+
+        // Changing it on a registered Wine.
+        try runtimes.setGStreamer(wineVersion: "11.18", gstreamer: nil)
+        XCTAssertNil(try runtimes.find(.wine).gstreamer)
+        XCTAssertNil(try launcher.winePlan(prefix: prefix, arguments: [], options: LaunchOptions()).environment["GST_REGISTRY_1_0"])
+        try runtimes.setGStreamer(wineVersion: "11.18", gstreamer: framework)
+        XCTAssertEqual(try runtimes.find(.wine).gstreamer?.path, root.path)
+        XCTAssertThrowsError(try runtimes.setGStreamer(wineVersion: "9.0", gstreamer: nil))
+        XCTAssertThrowsError(try runtimes.setGStreamer(wineVersion: "11.18", gstreamer: frameworks))
     }
 
     /// Release archives extract into a wrapper folder; `runtime add` should look inside it.

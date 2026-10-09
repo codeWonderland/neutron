@@ -20,20 +20,56 @@ and swappable, and (soon) apply per-game fixes from a community compatibility da
 
 > Status: early. Phase 1 (CLI runtime and prefix manager) is scaffolded; see the roadmap.
 
+## What you need
+
+Neutron doesn't ship or download anything yet. Download these yourself and register them
+with `neutron runtime add`:
+
+| What | Where to get it | Notes |
+|---|---|---|
+| macOS 14+ on Apple Silicon | | Plus Xcode 16 or the Swift 6 toolchain to build Neutron |
+| Rosetta 2 | `softwareupdate --install-rosetta` | Runs Wine's x86_64 code |
+| Wine | [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds/releases) (`wine-devel-*-osx64.tar.xz`) | Works as-is for wined3d. **For DXMT, patch it** with `tools/wine-dxmt/build.sh` (below) |
+| DXMT | [3Shain/dxmt releases](https://github.com/3Shain/dxmt/releases) (`dxmt-*-builtin.tar.gz`) | D3D10/11 → Metal. Point `runtime add` at the extracted folder |
+| Game Porting Toolkit (D3DMetal) | [Apple Developer](https://developer.apple.com/games/game-porting-toolkit/) (free Apple ID) | Optional; for D3D12 games. Never redistributed by Neutron. Not tested yet |
+
+### A Wine that works with DXMT
+
+DXMT draws into game windows through functions in Wine's Mac driver that stock Wine builds
+keep private. Without them a game starts but every frame fails with *"Failed to create metal
+view, it seems like your Wine has no exported symbols needed by DXMT"*.
+`tools/wine-dxmt/build.sh` makes a patched copy of a Gcenx build. It rebuilds only
+`winemac.so` from the matching Wine source with `tools/wine-dxmt/winemac-dxmt.patch`, which
+takes about a minute:
+
+```sh
+brew install bison flex mingw-w64
+tools/wine-dxmt/build.sh "$HOME/Downloads/wine-devel-11.18/Wine Devel.app/Contents/Resources/wine" \
+    ~/Neutron/wine-11.18-dxmt
+neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt
+```
+
+Tested with Wine 11.18. Use a recent Wine (11.15 or later): Unity 6 games need its mouse
+input support (`EnableMouseInPointer`). CrossOver-based builds also work with DXMT; for
+example Sikarugir's `WS12WineCX24.0.7` engine from
+[Sikarugir-App/Engines](https://github.com/Sikarugir-App/Engines/releases), registered
+with `--library-path <Sikarugir Template.app>/Contents/Frameworks` for the libraries it
+expects from its wrapper. That one is based on Wine 9, so Unity 6 games get no mouse input.
+
 ## Quick start
 
 ```sh
 swift build -c release
 alias neutron="$PWD/.build/release/neutron"
 
-# Register runtimes you've already downloaded
-neutron runtime add wine ~/Downloads/wine-10.x
-neutron runtime add dxmt ~/Downloads/dxmt-v0.x
+# Register runtimes you've already downloaded (the folders the archives extract to)
+neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt
+neutron runtime add dxmt ~/Downloads/dxmt-v0.80
 neutron runtime add gptk "/Volumes/Evaluation environment for Windows games 2.1"
 
 # Create a prefix and run something
 neutron prefix create default
-neutron detect ~/Games/MyGame/MyGame.exe     # shows graphics APIs and the backend it'd pick
+neutron detect ~/Games/MyGame/MyGame.exe     # shows engine, graphics APIs and the backend it'd pick
 neutron run ~/Games/MyGame/MyGame.exe --hud  # auto-picks a backend; --backend to override
 neutron run game.exe --dry-run               # print the env and command instead of running
 
@@ -42,6 +78,8 @@ neutron wine -- winecfg
 ```
 
 State lives in `~/Library/Application Support/Neutron` (override with `NEUTRON_HOME`).
+Steam games usually need a `steam_appid.txt` containing the game's app ID next to the
+`.exe` when Steam isn't running.
 
 ## How backends are applied
 
@@ -78,4 +116,5 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). In short, fix bugs upstream where they b
 
 ## License
 
-MIT. Wine, DXMT and the Game Porting Toolkit keep their own licenses.
+MIT. Wine, DXMT and the Game Porting Toolkit keep their own licenses;
+`tools/wine-dxmt/winemac-dxmt.patch` modifies Wine and is LGPL-2.1-or-later like Wine.

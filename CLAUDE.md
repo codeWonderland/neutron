@@ -8,9 +8,10 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
 ## Current state: read first
 
 - Phase 0 is under way (`docs/phase0-spike.md` has findings and results). The WINEDLLPATH
-  design **failed** and was replaced by composed runtimes. DXMT runs a real game (Loop
-  Tower Demo) but only on a CrossOver-based Wine (Sikarugir CX 24 engine); upstream Wine
-  can create a device but not present frames.
+  design **failed** and was replaced by composed runtimes. DXMT can only present frames on
+  a Wine whose `winemac.so` exports `macdrv_functions`: use `tools/wine-dxmt/build.sh` on a
+  Gcenx build (verified with 11.18), or a CrossOver-based build (Wine 9-based: no Unity 6
+  mouse input). The README's "What you need" lists where every dependency comes from.
 - Engine-aware detection is built and checked against a real 105-game library
   (`docs/phase0-spike.md`). Godot and other runtime-loading engines still fall to wined3d.
 - **Still unverified:** GPTK/D3DMetal (layout, `lib/external` overlay, D3D12) and D3D9 or
@@ -77,9 +78,12 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
 - `Tests/NeutronCoreTests/`: XCTest. Tests use a temp `NeutronPaths` root and fake runtimes;
   `Fixtures.makePE(imports:)` builds minimal PE files for detection tests.
 - `docs/phase0-spike.md`: hardware-spike checklist, findings and results tables.
+- `tools/wine-dxmt/`: Wine patch + script that makes a DXMT-capable copy of a macOS Wine
+  build by rebuilding only `winemac.so` (needs `brew install bison flex mingw-w64`).
 - `tools/d3dprobe/`: tiny D3D11/D3D12 Windows program for checking a backend without a game
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake
-  "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU.
+  "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU. It only creates a
+  device, so it can't catch presentation problems; check those with a windowed game.
 
 ## Conventions
 

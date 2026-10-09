@@ -18,7 +18,15 @@ You have two Apple Silicon Macs. If possible, put them on **different macOS vers
     | Gcenx wine-devel 11.18 | Wine 11.18 | yes | no | none exported | Device only, can't present |
     | Gcenx game-porting-toolkit 3.0-3 (cask tarball) | Wine 7.7 (GPTK 1.1) | no (`wine64`) | no | none | **Ships D3DMetal** in `lib/external`; layout matches Neutron's gptk guess |
     | Sikarugir `WS12WineSikarugir11.0_1` | Wine 11.0 | yes | yes | `macdrv_functions` | Wine processes fail to start outside the Sikarugir wrapper ("failed to start wineboot 1") |
-    | Sikarugir `WS12WineCX24.0.7_7` | CrossOver 24.0.7 (Wine 9.0) | yes | yes | `macdrv_functions` | **Works with DXMT.** Needs the wrapper's dylibs: `runtime add wine <engine> --library-path <Template.app>/Contents/Frameworks` (Sikarugir-App/Template releases) |
+    | Sikarugir `WS12WineCX24.0.7_7` | CrossOver 24.0.7 (Wine 9.0) | yes | yes | `macdrv_functions` | **Works with DXMT.** Needs the wrapper's dylibs: `runtime add wine <engine> --library-path <Template.app>/Contents/Frameworks` (Sikarugir-App/Template releases). `EnableMouseInPointer` is a stub, so Unity 6 games get no mouse input |
+    | Gcenx wine-devel 11.18 + `tools/wine-dxmt` | Wine 11.18 | yes | no | `macdrv_functions` (patched) | **Works with DXMT**, and has Wine's 2026 `EnableMouseInPointer`/pointer-message support. Only `winemac.so` is rebuilt |
+
+    Why a patch and not just "export the symbols": DXMT reads `client_cocoa_view` as the
+    4th field of `struct macdrv_win_data` (CrossOver's layout). Wine 11's struct is
+    `{hwnd, cocoa_window, client_view, rects, …}`, and `client_view` is only set for GL/Vulkan
+    surfaces. `winemac-dxmt.patch` exports a `macdrv_functions` table whose `get_win_data`
+    returns a copy in DXMT's layout and whose `create_metal_view` adds a fresh (uncached)
+    Metal view to the window's content view.
 
     Sikarugir engines extract to `<name>/wswine.bundle/{bin,lib/wine}`. Their wrapper also
     sets `WINEDLLPATH_PREPEND` (a Sikarugir Wine patch that searches a DLL folder before
@@ -140,6 +148,8 @@ renderer at runtime (Fortune Mill, CosmosKitten…) fall to wined3d.
 | Game | API | Mac / macOS | Backend | Works? | FPS | Env / fixes needed | Notes |
 |---|---|---|---|---|---|---|---|
 | Loop Tower Demo (GameMaker 2024.14) | D3D11 | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 | **Yes**: window renders (checked by eye) | not measured | `steam_appid.txt` (4480440); Wine `--library-path` to Sikarugir Template Frameworks | Steam init fails without a Steam client, game continues. Fails to present on upstream Wine 11.18 |
-| Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 (auto: d3dmetal → no GPTK → dxmt + `-force-d3d11`) | Starts: Player.log shows "Forcing GfxDevice: Direct3D 11", renderer Apple M1 | not measured | `steam_appid.txt` (4454860) | Log: `ID3D11Fence` creation fails (0x80004005), game continues |
+| Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 (auto: d3dmetal → no GPTK → dxmt + `-force-d3d11`) | Renders, but **no mouse input** | not measured | `steam_appid.txt` (4454860) | Player.log: "EnableMouseInPointer failed … Call not implemented" (Wine 9 stub). `ID3D11Fence` creation fails (0x80004005), game continues |
+| Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | Renders (screenshot); mouse input: pending | not measured | `steam_appid.txt` | No `EnableMouseInPointer` error |
+| Loop Tower Demo | D3D11 | M1 / 15.5 | dxmt v0.80 on Gcenx 11.18 + `tools/wine-dxmt` | **Yes**: renders (screenshot) | not measured | `steam_appid.txt` | |
 
 Rows here become the first entries in the Phase 2 compatibility database.

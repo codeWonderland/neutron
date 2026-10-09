@@ -248,8 +248,13 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
     v0.80 and main). `tools/dxmt-patch/timestamp-after-event.patch` makes `GetData(TIMESTAMP)`
     wait for the finish thread once the GPU has completed the query's chunk. Patched DXMT:
     calibration OK on the first attempt; Satisfactory initialises its engine and renders its
-    loading screen at 1920×1080 for 5+ minutes with no assert (it then waits for its online
-    platform: SteamAPI fails without the Steam client). The regression sweep is unchanged.
+    loading screen at 1920×1080 for 5+ minutes with no assert. It stays there: ~3 fps, ~50%
+    CPU, almost all of it blocked in the kernel (macOS `sample`), so it's waiting rather than
+    compiling or loading. SteamAPI fails to initialise without the Steam client, so it very
+    likely waits for its online platform (Phase 3). The regression sweep is unchanged.
+    (A run that seemed to show 0.4 fps and a 5 s "Timed out while waiting for GPU query" was
+    the Mac going to sleep mid-test; `pmset -g log` shows it. Long unattended tests now run
+    under `caffeinate`.)
   - `-vulkan` (Wine's winevulkan → MoltenVK, no Direct3D layer) gets much further (engine,
     menus and online services initialise) and then fails `vkCreateImage` with
     VK_ERROR_FEATURE_NOT_PRESENT: MoltenVK says "Metal does not allow uncompressed views of

@@ -1,0 +1,68 @@
+diff --git a/src/d3d11/d3d11_context_imm.cpp b/src/d3d11/d3d11_context_imm.cpp
+index b361f17..54fac15 100644
+--- a/src/d3d11/d3d11_context_imm.cpp
++++ b/src/d3d11/d3d11_context_imm.cpp
+@@ -367,6 +367,7 @@ public:
+       break;
+     }
+     case D3D11_QUERY_TIMESTAMP: {
++      static_cast<MTLD3D11TimestampQuery *>(pAsync)->chunk_seq = cmd_queue.CurrentSeqId();
+       if (auto query = static_cast<MTLD3D11TimestampQuery *>(pAsync)->End()) {
+         InvalidateCurrentPass(true);
+         EmitOP([query = Rc(query)](ArgumentEncodingContext &enc) mutable {
+@@ -450,7 +451,16 @@ public:
+     case D3D11_QUERY_TIMESTAMP: {
+       uint64_t null_data;
+       uint64_t *data_ptr = pData ? (uint64_t *)pData : &null_data;
+-      hr = static_cast<MTLD3D11TimestampQuery *>(pAsync)->GetData(data_ptr);
++      auto query = static_cast<MTLD3D11TimestampQuery *>(pAsync);
++      hr = query->GetData(data_ptr);
++      /* Timestamps are filled in by the finish thread after the GPU completes their chunk, while
++       * event queries signal from the GPU itself. Windows completes queries in order, so once a
++       * later event has signalled, an app may expect the timestamp too (Unreal Engine 5 calibrates
++       * its GPU clock this way and asserts otherwise). If the GPU is done, wait for the finish thread. */
++      if (hr == S_FALSE && cmd_queue.ChunkCompletedOnGPU(query->chunk_seq)) {
++        cmd_queue.WaitCPUFence(query->chunk_seq);
++        hr = query->GetData(data_ptr);
++      }
+       break;
+     }
+     case D3D11_QUERY_TIMESTAMP_DISJOINT: {
+diff --git a/src/d3d11/d3d11_query.hpp b/src/d3d11/d3d11_query.hpp
+index 9b7f2c2..c18a51c 100644
+--- a/src/d3d11/d3d11_query.hpp
++++ b/src/d3d11/d3d11_query.hpp
+@@ -176,6 +176,8 @@ class MTLD3D11TimestampQuery : public ID3D11Query1 {
+ public:
+   virtual HRESULT GetData(void *data) = 0;
+   virtual TimestampQuery *End() = 0;
++  /* the command chunk the last End() was encoded into */
++  uint64_t chunk_seq = 0;
+ };
+ 
+ HRESULT CreateTimestampQuery(MTLD3D11Device *pDevice,
+diff --git a/src/dxmt/dxmt_command_queue.hpp b/src/dxmt/dxmt_command_queue.hpp
+index 61a5c12..644703c 100644
+--- a/src/dxmt/dxmt_command_queue.hpp
++++ b/src/dxmt/dxmt_command_queue.hpp
+@@ -255,6 +255,20 @@ public:
+ 
+   void SetMaxLatency(uint32_t value) { max_latency_ = value; };
+ 
++  /**
++  Whether the GPU has finished chunk `seq`, though the finish thread may not have processed it yet
++  (query results such as timestamps are filled in then).
++  */
++  bool
++  ChunkCompletedOnGPU(uint64_t seq) {
++    if (seq <= cpu_coherent.signaledValue())
++      return true;
++    if (seq >= ready_for_encode.load(std::memory_order_acquire))
++      return false; // not committed yet
++    auto &cmdbuf = chunks[seq % kCommandChunkCount].attached_cmdbuf;
++    return cmdbuf && cmdbuf.status() >= WMTCommandBufferStatusCompleted;
++  }
++
+   void
+   WaitCPUFence(uint64_t seq) {
+     cpu_coherent.wait(seq);

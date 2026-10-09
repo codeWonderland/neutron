@@ -31,6 +31,7 @@ with `neutron runtime add`:
 | Rosetta 2 | `softwareupdate --install-rosetta` | Runs Wine's x86_64 code |
 | Wine | [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds/releases) (`wine-devel-*-osx64.tar.xz`) | Works as-is for wined3d. **For DXMT, patch it** with `tools/wine-dxmt/build.sh` (below) |
 | DXMT | [3Shain/dxmt releases](https://github.com/3Shain/dxmt/releases) (`dxmt-*-builtin.tar.gz`) | D3D10/11 → Metal. Point `runtime add` at the extracted folder |
+| DXMT patch (optional) | `tools/dxmt-patch/build.sh` (below) | Rebuilds DXMT's D3D11 DLLs with a timestamp-query fix that Unreal Engine 5 games need on D3D11 (Satisfactory) |
 | GStreamer | [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/#macos) (the macOS **runtime** installer, `gstreamer-1.0-*-universal.pkg`) | Optional; plays in-game videos (intros, cutscenes). Installs `/Library/Frameworks/GStreamer.framework`; pass it to `runtime add wine --gstreamer` |
 | Game Porting Toolkit (D3DMetal) | [Apple Developer](https://developer.apple.com/games/game-porting-toolkit/) (free Apple ID) | Optional; for D3D12 games (Unreal 5). Never redistributed by Neutron. Only runs on a CrossOver-based Wine 9 or older (see below) |
 
@@ -61,6 +62,21 @@ with `--library-path <Sikarugir Template.app>/Contents/Frameworks` for the libra
 expects from its wrapper. That one is based on Wine 9, so Unity 6 games get no mouse input, but it is also the kind
 of Wine D3DMetal needs: D3DMetal doesn't run on Wine 10 or later. Neutron checks what each
 Wine build supports and falls back to DXMT (with a note) when it can't run D3DMetal.
+
+### A DXMT for Unreal Engine 5 games
+
+Unreal Engine 5 calibrates its GPU clock at startup by ending a timestamp query and an event
+query, waiting for the event, then reading the timestamp. Windows completes queries in order;
+DXMT v0.80 fills timestamps in slightly later, so the engine asserts ("unset
+TOptional<FTimestampCalibration>"). `tools/dxmt-patch/build.sh` rebuilds DXMT's `d3d11.dll`,
+`dxgi.dll` and `d3d10core.dll` from the matching source with the fix (about a minute; needs the
+Wine build tree that `tools/wine-dxmt/build.sh` leaves behind):
+
+```sh
+tools/dxmt-patch/build.sh ~/Downloads/dxmt-v0.80/v0.80 ~/Neutron/dxmt-v0.80-patched
+neutron runtime add dxmt ~/Neutron/dxmt-v0.80-patched --version dxmt-v0.80-patched
+neutron prefix set-runtime <prefix> dxmt dxmt-v0.80-patched   # or remove the stock one
+```
 
 ## Quick start
 

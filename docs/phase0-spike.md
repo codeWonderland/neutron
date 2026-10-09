@@ -240,7 +240,16 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
     but neither is the cause: retested 2026-10-09 (11.9 GB copy without `.pdb` files) with
     `nvapi64`/`nvngx` disabled, with `r.GPUStatsEnabled=0`, `r.NVIDIATimestampWorkaround=0`,
     `r.GPUCrashDebugging=0`, and on DXMT main (e94c312f): the same assert on the RHI thread
-    ~18 s in every time. Some D3D11 behaviour UE 5's calibration relies on is still missing.
+    ~18 s in every time. **Cause found and fixed:** disassembling the D3D11 RHI shows UE 5's
+    calibration (up to 10 tries): end a disjoint query, a timestamp and an event, flush, spin
+    until the event signals, then read the disjoint and timestamp results once each. DXMT
+    signals events from the GPU but fills timestamps in on its finish thread afterwards, so the
+    timestamp still reads S_FALSE (`d3dprobe calibrate` reproduces it: 10/10 attempts fail on
+    v0.80 and main). `tools/dxmt-patch/timestamp-after-event.patch` makes `GetData(TIMESTAMP)`
+    wait for the finish thread once the GPU has completed the query's chunk. Patched DXMT:
+    calibration OK on the first attempt; Satisfactory initialises its engine and renders its
+    loading screen at 1920×1080 for 5+ minutes with no assert (it then waits for its online
+    platform: SteamAPI fails without the Steam client). The regression sweep is unchanged.
   - `-vulkan` (Wine's winevulkan → MoltenVK, no Direct3D layer) gets much further (engine,
     menus and online services initialise) and then fails `vkCreateImage` with
     VK_ERROR_FEATURE_NOT_PRESENT: MoltenVK says "Metal does not allow uncompressed views of

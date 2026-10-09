@@ -98,8 +98,12 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
 - `tools/wine-dxmt/`: Wine patches + script that make a DXMT-capable copy of a macOS Wine
   build by rebuilding only `winemac.so` and `mfreadwrite.dll` (needs `brew install bison
   flex mingw-w64`). Every `*.patch` there is applied, in name order.
+- `tools/dxmt-patch/`: DXMT patches + script that rebuild only DXMT's Windows-side DLLs
+  (d3d11, dxgi, d3d10core) from the release's source tag with mingw-gcc; reuses the Wine build
+  tree from `tools/wine-dxmt`. Builtin DLLs need the 17-byte "Wine builtin DLL\0" at 0x40.
 - `tools/d3dprobe/`: tiny D3D9/D3D11/D3D12 Windows program for checking a backend without a game
-  (modes `11`, `12`, `9`, `shared` textures, `timestamp` queries)
+  (modes `11`, `12`, `9`, `shared` textures, `timestamp`, `queryorder`, `calibrate` (UE5's GPU
+  clock calibration, step by step))
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake
   "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU. It only creates a
   device, so it can't catch presentation problems; check those with a windowed game.

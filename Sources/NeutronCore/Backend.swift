@@ -77,6 +77,15 @@ public enum BackendResolver {
         let d3d11 = ["d3d11.dll", "dxgi.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll"]
         // Engines often load their renderer at runtime (many UnityPlayer.dll builds import
         // only opengl32.dll), so trust the engine over the import table.
+        if let engine, case .godot = engine.engine {
+            let flags = engine.engine.arguments(for: .wined3d, userArguments: [])
+            return BackendRecommendation(
+                backend: .wined3d,
+                reason: flags.isEmpty
+                    ? "\(engine.engine.description) renders with OpenGL, so no Direct3D layer is needed"
+                    : "\(engine.engine.description) renders with Vulkan through MoltenVK (\(flags.joined(separator: " "))), so no Direct3D layer is needed"
+            )
+        }
         if let engine, engine.engine.supportsD3D11 {
             let name = engine.engine.description
             // Unity's D3D12 renderer needs D3D11On12, which D3DMetal lacks (Unity 6 falls back
@@ -90,7 +99,7 @@ public enum BackendResolver {
             }
             return BackendRecommendation(
                 backend: .dxmt,
-                reason: "\(name) can render with D3D11 (\(engine.engine.forceD3D11Argument)), which runs on DXMT"
+                reason: "\(name) can render with D3D11 (\(engine.engine.arguments(for: .dxmt, userArguments: []).joined(separator: " "))), which runs on DXMT"
             )
         }
         if imports.contains("d3d12.dll") {

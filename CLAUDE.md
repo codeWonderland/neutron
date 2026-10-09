@@ -12,8 +12,8 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
   a Wine whose `winemac.so` exports `macdrv_functions`: use `tools/wine-dxmt/build.sh` on a
   Gcenx build (verified with 11.18), or a CrossOver-based build (Wine 9-based: no Unity 6
   mouse input). The README's "What you need" lists where every dependency comes from.
-- Engine-aware detection is built and checked against a real 105-game library
-  (`docs/phase0-spike.md`). Godot and other runtime-loading engines still fall to wined3d.
+- Engine-aware detection (Unity, Unreal, Godot) is built and checked against a real
+  105-game library and 10+ launched games (`docs/phase0-spike.md`).
 - D3DMetal is verified on a CrossOver-based Wine 9 (Sikarugir CX 24) but can't run on Wine
   10+; `WineCapabilities.swift` reads each Wine build's exports and the launcher falls back
   to DXMT. Unity games never get D3D12 from D3DMetal (no D3D11On12), so they go to DXMT.
@@ -43,9 +43,10 @@ every push and PR. There is no linter configured.
 `Launcher.gamePlan` (`Launcher.swift`) is the core path:
 
 1. **Backend choice**, first match wins: `--backend` flag → backend pinned in the prefix's
-   config → `GameScan` auto-detect. `Engine.swift` recognises Unity and Unreal (following
-   Unreal stub exes to `*-Shipping.exe`); for those, a shipped D3D12 Agility SDK means
-   `d3dmetal` (with a `dxmt` fallback if no GPTK is registered), else `dxmt`. Other games
+   config → `GameScan` auto-detect. `Engine.swift` recognises Unity, Unreal (following
+   Unreal stub exes to `*-Shipping.exe`) and Godot. Unity → `dxmt`; Unreal with a shipped
+   D3D12 Agility SDK → `d3dmetal` (falls back to `dxmt`), else `dxmt`; Godot → no Direct3D
+   layer (Godot 4 gets `--rendering-driver vulkan`). Other games
    use PE imports of the exe and sibling DLLs (minus middleware like EOS/CEF): d3d12 →
    `d3dmetal`, d3d10/11/dxgi → `dxmt`, else `wined3d`. On backends without D3D12, engine
    games get `-force-d3d11` (Unity) or `-dx11` (Unreal) unless `--no-engine-args`.

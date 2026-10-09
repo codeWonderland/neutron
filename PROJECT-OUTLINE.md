@@ -58,6 +58,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] `detect`: PE import scan of exe and sibling DLLs → backend recommendation
 - [x] Engine-aware detection: Unity/Unreal, Unreal stub following, Agility SDK, engine
       D3D11 flags, GPTK→DXMT fallback, middleware filtering
+- [x] Godot detection (Godot 4 → Vulkan through MoltenVK)
 - [x] `run`: launch with auto/explicit backend, `--hud`, `--debug`, `--dry-run`
 - [x] `wine`: raw Wine commands in a prefix
 - [ ] Fix whatever Phase 0 finds (layouts, load paths) *(Wine/DXMT layouts and loading done; GPTK pending)*
@@ -116,5 +117,6 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 | 2026-10-08 | Gate backends on what the Wine build exports (`WineCapabilities`): DXMT needs `winemac.so` → `macdrv_functions`; D3DMetal also needs `ntdll.dll` → `__wine_unix_call`. Auto mode falls back to DXMT, explicit choices warn | D3DMetal (GPTK 3.0) only runs on CrossOver-era Wine (≤ 9); on Wine 11 it can't load, and even with the export restored it crashes on thread-register handling. Checking exports beats version numbers, since builds patch these independently |
 | 2026-10-08 | Unity games always go to DXMT; the Agility SDK rule now applies to Unreal only | Unity's D3D12 renderer needs D3D11On12, which D3DMetal lacks: Unity 6 logs "failed to create D3D11On12 device" and falls back to D3D11 there |
 | 2026-10-08 | The GPTK overlay takes only D3DMetal's files (unix libraries that link into `external/`, their DLLs, `external/`) | Registering a whole Wine build as GPTK (Gcenx's game-porting-toolkit) overlaid its Wine 7.7 `ntdll.so` etc. onto Wine 11 and broke it |
+| 2026-10-08 | Detect Godot; Godot 4 gets `--rendering-driver vulkan` and no Direct3D backend | Godot imports no graphics DLLs. Under Wine its default driver fails and it drops to the OpenGL Compatibility renderer; Vulkan (Wine's winevulkan → MoltenVK) runs Forward+ (Fortune Mill) |
 | 2026-10-08 | Engine-aware detection (Unity, Unreal): the D3D12 Agility SDK decides d3dmetal (DXMT fallback when no GPTK), otherwise DXMT; backends without D3D12 get the engine's `-force-d3d11` / `-dx11` | Unity and Unreal import both d3d11 and d3d12 (or neither: many UnityPlayer.dll builds import only opengl32), so imports can't tell. Across 38 Unity installs and 11 Unreal games the Agility SDK appeared only in Unity 6 and UE5 builds. These flags are engine-wide rules, not per-game workarounds, so they live in code. Unreal stubs are followed to `*-Shipping.exe`; middleware DLLs (EOS, CEF) are ignored since they import d3d12 for overlays |
 | 2026-10-08 | JSON for internal state, TOML planned for the game database | No dependencies now; TOML is easier for contributors to edit |

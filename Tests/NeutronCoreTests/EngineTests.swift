@@ -93,6 +93,41 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(EngineDetection.detect(executable: unnamed.stub)?.renderer.path, unnamed.shipping.path)
     }
 
+    /// A Godot executable: the engine banner and URL live in the binary (no D3D imports).
+    private func makeGodotGame(version: String) throws -> URL {
+        let exe = root.appendingPathComponent("Fortune Mill/FortuneMill.exe")
+        var data = Fixtures.makePE(imports: ["KERNEL32.dll"])
+        data.append(Data("\0Godot Engine v\(version).stable.mono.official\0https://godotengine.org\0".utf8))
+        try Fixtures.write(exe, data)
+        return exe
+    }
+
+    func testGodot4UsesVulkanThroughMoltenVK() throws {
+        let scan = try GameScan(executable: try makeGodotGame(version: "4.5.1"))
+        XCTAssertEqual(scan.engine?.engine, .godot(version: "4.5.1"))
+        XCTAssertEqual(scan.recommendation.backend, .wined3d)
+        let godot = GameEngine.godot(version: "4.5.1")
+        XCTAssertEqual(godot.arguments(for: .wined3d, userArguments: []), ["--rendering-driver", "vulkan"])
+        XCTAssertEqual(godot.arguments(for: .d3dmetal, userArguments: []), [])
+        XCTAssertEqual(godot.arguments(for: .wined3d, userArguments: ["--rendering-driver", "opengl3"]), [])
+    }
+
+    func testGodot3NeedsNoFlags() throws {
+        let scan = try GameScan(executable: try makeGodotGame(version: "3.5.3"))
+        XCTAssertEqual(scan.engine?.engine, .godot(version: "3.5.3"))
+        XCTAssertEqual(GameEngine.godot(version: "3.5.3").arguments(for: .wined3d, userArguments: []), [])
+        XCTAssertTrue(scan.recommendation.reason.contains("OpenGL"))
+    }
+
+    func testNonGodotExecutableIsNotGodot() throws {
+        let exe = root.appendingPathComponent("Plain/game.exe")
+        var data = Fixtures.makePE(imports: ["d3d11.dll"])
+        data.append(Data("version 4.5.1.stable but no engine URL".utf8))
+        try Fixtures.write(exe, data)
+        XCTAssertNil(EngineDetection.godotVersion(executable: exe))
+        XCTAssertNil(try GameScan(executable: exe).engine)
+    }
+
     func testEngineArguments() {
         let unity = GameEngine.unity(version: "2022.3.1f1")
         XCTAssertEqual(unity.arguments(for: .dxmt, userArguments: []), ["-force-d3d11"])

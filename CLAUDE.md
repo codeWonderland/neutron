@@ -85,7 +85,8 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   setup + `BackendResolver`), `Engine.swift` (Unity/Unreal detection, engine flags),
   `ComposedRuntime.swift` (clone + overlay), `PEInfo.swift` (PE import parsing, `GameScan`),
   `WineCapabilities.swift` (what a Wine build supports, Mach-O/PE export reading),
-  `Doctor.swift` (`neutron doctor` checks), `LaunchLog.swift`, `Launcher.swift`
+  `Doctor.swift` (`neutron doctor` checks), `LaunchLog.swift`, `Steam.swift` (Steam for Windows
+  install/launch plans), `Launcher.swift`
   (`LaunchPlan` building and running).
 - `Sources/neutron/`: swift-argument-parser CLI; one file per command group under `Commands/`.
 - `Tests/NeutronCoreTests/`: XCTest. Tests use a temp `NeutronPaths` root and fake runtimes;

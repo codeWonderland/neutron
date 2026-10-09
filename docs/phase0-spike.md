@@ -153,6 +153,16 @@ a prefix in seconds, and the first `Steam.exe` run downloads and installs the cl
 Steam's own logs (`Steam/logs/webhelper.txt`, `cef_log.txt`) are the place to start. Note
 the updater exits and relaunches Steam, so the launched process "ends" after updating.
 
+### DXVK-macOS (fourth-backend check, 2026-10-09)
+
+Gcenx/DXVK-macOS `v1.10.3-20230507-repack` `-builtin` ships builtin-marked
+`{x86_64,i386}-windows/{d3d11,d3d10core}.dll` but no `dxgi.dll`. Composed by hand onto the
+patched Wine 11.18, `d3dprobe` gets "D3D11CoreCreateDevice: Adapter is not a DXVK adapter"
+and hangs: DXVK's d3d11 needs DXVK's dxgi (CrossOver's dxgi presumably provides the hook).
+The full release includes `dxgi.dll` as a native (non-builtin) DLL, which Wine won't load
+from `lib/wine`. A DXVK backend would need either a builtin DXVK build with dxgi or
+native DLLs in the prefix (against the current design).
+
 ### Godot
 
 Godot executables contain `https://godotengine.org` and a version string such as
@@ -251,6 +261,26 @@ Failures:
   Unverified.
 - Novus Orbis passes given 150 s. Legends of Idleon (Electron 11 + greenworks) quits
   silently with or without `--no-sandbox`/`--disable-gpu`: it needs the Steam client.
+
+**Larger games** (same setup, copied one at a time):
+
+| Result | Game | Notes |
+|---|---|---|
+| PASS | Last Man Sitting (UE5), SpongeBob SquarePants: Titans of the Tide (UE5, 10 GB), The Bloodline (UE 4.27, 18 GB) | Unreal stub followed; D3DMetal → DXMT fallback with `-dx11` on Wine 11 |
+| FAIL | Deadzone Rogue 2 Playtest (UE5) | Exits within seconds (exe is `Deadzone2Steam`; likely a Steam relaunch) |
+| FAIL | Skyrim Special Edition | Exits within seconds (Steam DRM wrapper; needs the client) |
+| FAIL | Bugsnax (OpenGL: GLEW + Irrlicht) | Null-pointer read in `Bugsnax.exe` after its OpenVR probe; plausibly a missing GL ≥ 4.2 feature on macOS (unverified) |
+
+Not tested (too big for the free disk at the time, 20–98 GB): Dark Souls III, Elden Ring
+and Nightreign (Easy Anti-Cheat), Satisfactory, Palworld, Warframe, BeamNG.drive, Icarus,
+Borderlands 3; Walkabout Mini Golf (14.6 GB, mainly VR). Linux-only installs on the desktop:
+Valheim, Megabonk, Barony and others.
+
+So far, across 52 launched games, 39 reach a rendered window on the patched Gcenx 11.18 +
+DXMT (9 of the first 14, 27 of the 32-game batch, 3 of 6 large games). The biggest failure
+class is the Steam client (7: CATR, ASTRONEER, Needle In A Haystack, Legends of Idleon,
+Deep Rock Survivor, Deadzone Rogue 2, Skyrim SE), then macOS OpenGL limits, missing
+DirectComposition, media playback (Timberborn) and VR.
 
 **D3D12 on D3DMetal (Unreal 5):** A Game About Digging A Hole on the CrossOver 24 engine with
 GPTK 3.0-3 renders its menu through D3D12 with `-dx12` (`d3d12.dll` loaded). Without a flag

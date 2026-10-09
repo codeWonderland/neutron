@@ -68,6 +68,9 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] `neutron kill`: stop a prefix's Wine processes with the right `wineserver -k`
 - [x] Unreal prerequisites: VC++ runtime check (bypassed by running the Shipping exe)
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)
+      *(Gcenx's DXVK-macOS 1.10.3 `-builtin` repack has no `dxgi.dll`; with Wine's dxgi it
+      logs "Adapter is not a DXVK adapter" and hangs. The full release has `dxgi.dll` but
+      isn't builtin-marked, so it can't be overlaid. See spike doc)*
 
 ### Phase 2: Compatibility database
 - [ ] Schema: `games/<steam-appid or exe-hash>.toml` with backend, env, DLL overrides,

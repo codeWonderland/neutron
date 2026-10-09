@@ -32,13 +32,16 @@ struct RunCommand: ParsableCommand {
     @Flag(help: "Don't write a log file (logs/<prefix>/ in Neutron's state folder).")
     var noLog = false
 
+    @Flag(help: "For Unreal games, run the launcher stub instead of its *-Shipping.exe.")
+    var launchStub = false
+
     @Argument(parsing: .postTerminator, help: "Arguments passed to the program (after --).")
     var programArguments: [String] = []
 
     func run() throws {
         let prefix = try Env.prefixes.get(self.prefix)
         let url = URL(fileURLWithPath: program).standardizedFileURL
-        let options = LaunchOptions(backend: backend.backend, hud: hud, debug: debug, engineArguments: !noEngineArgs)
+        let options = LaunchOptions(backend: backend.backend, hud: hud, debug: debug, engineArguments: !noEngineArgs, launchStub: launchStub)
         let plan = try Env.launcher.gamePlan(prefix: prefix, program: url, arguments: programArguments, options: options)
         for note in plan.notes { print("neutron: \(note)") }
         if dryRun { return printPlan(plan) }

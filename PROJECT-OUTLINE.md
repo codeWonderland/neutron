@@ -63,7 +63,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] `wine`: raw Wine commands in a prefix
 - [ ] Fix whatever Phase 0 finds (layouts, load paths) *(Wine/DXMT layouts and loading done; GPTK pending)*
 - [x] Log files per launch (`logs/<prefix>/<timestamp>-<exe>.log`) echoed to the terminal
-- [ ] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
+- [x] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
+      (also each Wine's DXMT/D3DMetal/msync support and missing wrapper libraries)
 - [x] `neutron kill`: stop a prefix's Wine processes with the right `wineserver -k`
 - [ ] Unreal prerequisites: VC++ runtime registry check (see spike doc)
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)

@@ -12,10 +12,13 @@ import Foundation
 public struct WineCapabilities: Equatable, Sendable {
     public let exportsMacDriverFunctions: Bool
     public let exportsWineUnixCall: Bool
+    /// The build has msync (Mach-semaphore sync; reads `WINEMSYNC`). Informational only.
+    public let hasMsync: Bool
 
-    public init(exportsMacDriverFunctions: Bool, exportsWineUnixCall: Bool) {
+    public init(exportsMacDriverFunctions: Bool, exportsWineUnixCall: Bool, hasMsync: Bool = false) {
         self.exportsMacDriverFunctions = exportsMacDriverFunctions
         self.exportsWineUnixCall = exportsWineUnixCall
+        self.hasMsync = hasMsync
     }
 
     public init(wine: Runtime) {
@@ -26,6 +29,9 @@ public struct WineCapabilities: Equatable, Sendable {
         exportsMacDriverFunctions = winemac.map { MachOExports.contains("_macdrv_functions", in: $0) } ?? false
         let ntdll = lib.appendingPathComponent("x86_64-windows/ntdll.dll")
         exportsWineUnixCall = (try? PEInfo(contentsOf: ntdll))?.exports.contains("__wine_unix_call") ?? false
+        // Upstream's ntdll.so only mentions libc's msync(); msync builds read WINEMSYNC.
+        hasMsync = (try? Data(contentsOf: lib.appendingPathComponent("x86_64-unix/ntdll.so"), options: .alwaysMapped))
+            .map { $0.range(of: Data("WINEMSYNC".utf8)) != nil } ?? false
     }
 
     public func supports(_ backend: GraphicsBackend) -> Bool {
@@ -55,6 +61,29 @@ public struct WineCapabilities: Equatable, Sendable {
 
 /// Looks up exported symbols in a Mach-O file's export trie.
 enum MachOExports {
+    /// `@rpath/` libraries a thin 64-bit Mach-O file loads (LC_LOAD_DYLIB, LC_LOAD_WEAK_DYLIB),
+    /// without the prefix. Empty for files it can't read.
+    static func rpathDylibs(in url: URL) -> [String] {
+        guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return [] }
+        return data.withUnsafeBytes { (b: UnsafeRawBufferPointer) -> [String] in
+            guard u32(b, 0) == 0xFEED_FACF, let count = u32(b, 16) else { return [] }
+            var names: [String] = []
+            var command = 32
+            for _ in 0..<min(count, 1024) {
+                guard let cmd = u32(b, command), let size = u32(b, command + 4), size >= 8 else { break }
+                if cmd == 0xC || cmd == 0x8000_0018, let offset = u32(b, command + 8) {
+                    var o = command + Int(offset)
+                    var bytes: [UInt8] = []
+                    while o < min(command + Int(size), b.count), b[o] != 0 { bytes.append(b[o]); o += 1 }
+                    let name = String(decoding: bytes, as: UTF8.self)
+                    if name.hasPrefix("@rpath/") { names.append(String(name.dropFirst(7))) }
+                }
+                command += Int(size)
+            }
+            return names
+        }
+    }
+
     static func contains(_ symbol: String, in url: URL) -> Bool {
         guard let data = try? Data(contentsOf: url, options: .alwaysMapped) else { return false }
         return data.withUnsafeBytes { (buffer: UnsafeRawBufferPointer) -> Bool in

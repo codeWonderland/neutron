@@ -68,6 +68,7 @@ alias neutron="$PWD/.build/release/neutron"
 neutron runtime add wine ~/Neutron/wine-11.18-dxmt --version wine-11.18-dxmt
 neutron runtime add dxmt ~/Downloads/dxmt-v0.80
 neutron runtime add gptk "/Volumes/Evaluation environment for Windows games 2.1"
+neutron doctor                                # checks the Mac, runtimes and prefixes; says how to fix problems
 
 # Create a prefix and run something
 neutron prefix create default

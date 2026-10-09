@@ -93,7 +93,7 @@ public enum BackendResolver {
             if engine.shipsD3D12AgilitySDK, case .unreal = engine.engine {
                 return BackendRecommendation(
                     backend: .d3dmetal,
-                    reason: "\(name) ships the D3D12 Agility SDK, so D3D12 is likely its main renderer",
+                    reason: "\(name) ships the D3D12 Agility SDK, so it can use D3D12; D3DMetal runs D3D12 and D3D11",
                     fallback: .dxmt
                 )
             }

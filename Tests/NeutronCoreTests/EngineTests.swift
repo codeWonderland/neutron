@@ -177,17 +177,22 @@ final class EngineTests: XCTestCase {
         launcher.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: true) }
         let exe = try makeUnrealGame(agility: true).stub
 
-        // No GPTK registered: falls back from d3dmetal to dxmt and forces D3D11.
+        let shipping = try GameScan(executable: exe).engine!.renderer
+
+        // No GPTK registered: falls back from d3dmetal to dxmt, forces D3D11, and runs the
+        // Shipping exe instead of the stub.
         let plan = try launcher.gamePlan(prefix: prefix, program: exe, arguments: ["-windowed"], options: LaunchOptions())
         XCTAssertEqual(plan.backend, .dxmt)
-        XCTAssertEqual(plan.arguments, [exe.path, "-dx11", "-windowed"])
-        XCTAssertEqual(plan.notes.count, 2)
+        XCTAssertEqual(plan.arguments, [shipping.path, "-dx11", "-windowed"])
+        XCTAssertEqual(plan.workingDirectory?.path, shipping.deletingLastPathComponent().path)
+        XCTAssertEqual(plan.notes.count, 3)
 
-        // An explicit backend still gets the engine flag; --no-engine-args turns it off.
+        // An explicit backend still gets the engine flag; --no-engine-args turns it off;
+        // --launch-stub runs the stub.
         let explicit = try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions(backend: .dxmt))
-        XCTAssertEqual(explicit.arguments, [exe.path, "-dx11"])
+        XCTAssertEqual(explicit.arguments, [shipping.path, "-dx11"])
         let plain = try launcher.gamePlan(prefix: prefix, program: exe,
-                                          options: LaunchOptions(backend: .dxmt, engineArguments: false))
+                                          options: LaunchOptions(backend: .dxmt, engineArguments: false, launchStub: true))
         XCTAssertEqual(plain.arguments, [exe.path])
 
         // Without GPTK or a fallback, d3dmetal reports the missing runtime.

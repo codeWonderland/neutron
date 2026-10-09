@@ -246,7 +246,20 @@ Failures:
 - **Legends of Idleon**: Electron 11 (Chromium 87); exits. See Electron below.
 - **SUPERHOT VR**: needs a VR runtime (expected).
 - **Novus Orbis**: still on the "Made with Unity" splash at 70 s (renders; slow start).
-- A game about sucking … Demo: not copied (path quoting), retested separately.
+- A game about sucking … Demo (Unity 6000.3): renders ghost sprites on a black scene at 60 s;
+  DXMT logs `Not supported feature: 11/12/13` (D3D9-instancing/marker/D3D9-options queries).
+  Unverified.
+- Novus Orbis passes given 150 s. Legends of Idleon (Electron 11 + greenworks) quits
+  silently with or without `--no-sandbox`/`--disable-gpu`: it needs the Steam client.
+
+**D3D12 on D3DMetal (Unreal 5):** A Game About Digging A Hole on the CrossOver 24 engine with
+GPTK 3.0-3 renders its menu through D3D12 with `-dx12` (`d3d12.dll` loaded). Without a flag
+it uses its default RHI, D3D11, which D3DMetal also runs; shipping the Agility SDK only means
+D3D12 is available. Through its stub it first stopped at "The following component(s) are
+required: Microsoft Visual C++ Runtime" on CrossOver 24, even in a fresh prefix and after
+installing Microsoft's vc_redist 14.44.35211 (registry key present). Wine 11.18 passes that
+check. Neutron now runs the Shipping exe directly for Unreal stubs (`--launch-stub` to opt
+out), and the game passes on both Wines with auto settings.
 
 Also: Wine 11's built-in D3D12 (vkd3d → MoltenVK) creates a device for `d3dprobe 12` on
 plain Wine, but Unity's D3D12 init fails on it. Unreal 5 (Digging A Hole) loads D3D11 even

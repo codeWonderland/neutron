@@ -26,8 +26,12 @@ public struct LaunchOptions: Sendable {
     public var debug: String?
     /// Add the engine's force-D3D11 flag when the backend has no D3D12 (Unity, Unreal).
     public var engineArguments = true
+    /// Run an Unreal stub launcher itself instead of the `*-Shipping.exe` it starts.
+    public var launchStub = false
 
-    public init(backend: GraphicsBackend? = nil, hud: Bool = false, debug: String? = nil, engineArguments: Bool = true) {
+    public init(backend: GraphicsBackend? = nil, hud: Bool = false, debug: String? = nil, engineArguments: Bool = true,
+                launchStub: Bool = false) {
+        self.launchStub = launchStub
         self.backend = backend
         self.hud = hud
         self.debug = debug
@@ -93,9 +97,18 @@ public struct Launcher: Sendable {
             }
         }
 
-        var plan = try winePlan(prefix: prefix, arguments: [program.path] + engineArguments + arguments,
+        // An Unreal stub only checks for the VC++ runtime and relaunches the Shipping exe. Its
+        // check fails on CrossOver-based Wine even with Microsoft's runtime installed, so run
+        // the Shipping exe directly (it finds its project without the stub's arguments).
+        var target = program
+        if !options.launchStub, let engine = scan?.engine, case .unreal = engine.engine, engine.renderer != program {
+            target = engine.renderer
+            notes.append("Unreal launcher stub: running \(target.lastPathComponent) directly (--launch-stub to run the stub)")
+        }
+
+        var plan = try winePlan(prefix: prefix, arguments: [target.path] + engineArguments + arguments,
                                 options: options, setup: setup)
-        plan.workingDirectory = program.deletingLastPathComponent()
+        plan.workingDirectory = target.deletingLastPathComponent()
         plan.backend = backend
         plan.notes = notes
         return plan

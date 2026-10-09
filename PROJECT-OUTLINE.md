@@ -66,7 +66,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [x] `neutron doctor`: check for Rosetta, runtimes, macOS version and common problems
       (also each Wine's DXMT/D3DMetal/msync support and missing wrapper libraries)
 - [x] `neutron kill`: stop a prefix's Wine processes with the right `wineserver -k`
-- [ ] Unreal prerequisites: VC++ runtime registry check (see spike doc)
+- [x] Unreal prerequisites: VC++ runtime check (bypassed by running the Shipping exe)
 - [ ] DXVK + MoltenVK as a fourth backend (for D3D11 games DXMT can't handle)
 
 ### Phase 2: Compatibility database
@@ -118,6 +118,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 | 2026-10-08 | DXMT requires a CrossOver-based Wine; Wine runtimes can carry `libraryPaths` (→ `DYLD_FALLBACK_LIBRARY_PATH`) | Upstream Wine 11.18 creates a DXMT device but can't present ("no exported symbols needed by DXMT"): winemac doesn't export `macdrv_functions`. Sikarugir's CrossOver 24.0.7 engine exports it and runs Loop Tower Demo on DXMT, but needs its wrapper's `Frameworks` dylibs |
 | 2026-10-08 | Ship a Wine patch + script (`tools/wine-dxmt`) that rebuilds only `winemac.so` with an exported `macdrv_functions` table, instead of relying on CrossOver-based builds | The only DXMT-capable builds available (CrossOver 24 engines) are Wine 9-based and lack `EnableMouseInPointer`, so Unity 6 games get no mouse input. Wine 11.18 has it; patching one unix library of a Gcenx build keeps everything else stock and takes ~1 minute. Neutron still doesn't download or bundle Wine |
 | 2026-10-08 | Gate backends on what the Wine build exports (`WineCapabilities`): DXMT needs `winemac.so` → `macdrv_functions`; D3DMetal also needs `ntdll.dll` → `__wine_unix_call`. Auto mode falls back to DXMT, explicit choices warn | D3DMetal (GPTK 3.0) only runs on CrossOver-era Wine (≤ 9); on Wine 11 it can't load, and even with the export restored it crashes on thread-register handling. Checking exports beats version numbers, since builds patch these independently |
+| 2026-10-09 | Run an Unreal stub's `*-Shipping.exe` directly (`--launch-stub` to opt out) | The stub only checks the VC++ runtime and relaunches; that check fails on CrossOver-based Wine even with vc_redist 14.44 installed, blocking Unreal 5 on D3DMetal. Running the Shipping exe works on both Wines |
 | 2026-10-09 | Stop forcing `-force-d3d11` for Unity | Some Unity 6 builds ship no D3D11 shaders, and forcing D3D11 makes them fail to start (Database Detective). Without the flag Unity tries D3D12, which fails under these Wines, and falls back to D3D11 on DXMT by itself |
 | 2026-10-08 | Unity games always go to DXMT; the Agility SDK rule now applies to Unreal only | Unity's D3D12 renderer needs D3D11On12, which D3DMetal lacks: Unity 6 logs "failed to create D3D11On12 device" and falls back to D3D11 there |
 | 2026-10-08 | The GPTK overlay takes only D3DMetal's files (unix libraries that link into `external/`, their DLLs, `external/`) | Registering a whole Wine build as GPTK (Gcenx's game-porting-toolkit) overlaid its Wine 7.7 `ntdll.so` etc. onto Wine 11 and broke it |

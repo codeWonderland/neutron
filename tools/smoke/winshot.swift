@@ -29,7 +29,9 @@ for w in windows {
     guard matches, let bounds = w[kCGWindowBounds as String] as? [String: Double],
           let id = w[kCGWindowNumber as String] as? Int else { continue }
     let area = (bounds["Width"] ?? 0) * (bounds["Height"] ?? 0)
-    if area > 100 * 100, area > (best?.area ?? 0) { best = (id, area, "\(owner) / \(title)") }
+    if area > 100 * 100, area > (best?.area ?? 0) {
+        best = (id, area, "\(Int(bounds["Width"] ?? 0))x\(Int(bounds["Height"] ?? 0)) \(owner) / \(title)")
+    }
 }
 guard let best else { print("no matching window"); exit(1) }
 

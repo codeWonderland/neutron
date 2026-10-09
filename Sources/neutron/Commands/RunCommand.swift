@@ -82,6 +82,9 @@ struct DetectCommand: ParsableCommand {
         }
         let graphics = scan.imports.filter { $0.hasPrefix("d3d") || $0.hasPrefix("dxgi") || $0 == "ddraw.dll" || $0 == "opengl32.dll" || $0 == "vulkan-1.dll" }
         print("graphics imports: \(graphics.isEmpty ? "none" : graphics.sorted().joined(separator: ", "))")
+        if scan.usesSteamworks {
+            print("steam: uses Steamworks; without the Steam client add steam_appid.txt (the app ID) next to the exe that runs")
+        }
         let pick = scan.recommendation
         print("backend: \(pick.backend.rawValue) (\(pick.reason))")
         if let fallback = pick.fallback {

@@ -106,6 +106,11 @@ public struct Launcher: Sendable {
             notes.append("Unreal launcher stub: running \(target.lastPathComponent) directly (--launch-stub to run the stub)")
         }
 
+        let appID = target.deletingLastPathComponent().appendingPathComponent("steam_appid.txt")
+        if scan?.usesSteamworks == true, !FileManager.default.fileExists(atPath: appID.path) {
+            notes.append("uses Steamworks but has no steam_appid.txt; without the Steam client it may quit or relaunch through Steam. Put the game's Steam app ID in \(appID.path)")
+        }
+
         var plan = try winePlan(prefix: prefix, arguments: [target.path] + engineArguments + arguments,
                                 options: options, setup: setup)
         plan.workingDirectory = target.deletingLastPathComponent()

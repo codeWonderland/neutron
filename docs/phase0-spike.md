@@ -354,9 +354,21 @@ Failures:
 Tested later, one at a time: Dark Souls III, Palworld (relaunch via Steam, traced),
 Satisfactory (see Diagnoses), Elden Ring Nightreign (exits; Easy Anti-Cheat game normally
 started via `start_protected_game.exe`, no Steam relaunch), Walkabout Mini Golf (Unity
-6000.3; DXMT device and swapchain come up, then it initialises Oculus/OpenXR and stays black,
-so it's VR-only). Not tested because they don't fit on this Mac's free disk even one at a
-time (51–98 GB): Elden Ring, Warframe, BeamNG.drive, Icarus, Borderlands 3. Linux-only installs on the desktop:
+6000.3; DXMT device and swapchain come up, then it initialises Oculus/OpenXR and stays black.
+`-vrmode None` changes nothing (XR Plugin Management ignores it), and its log says "Could not
+connect to Steam. Quitting...": it needs the Steam client as well as VR). Too big for this
+Mac's free disk (51–98 GB) for full tests, so they were run with only their `.exe`/`.dll`
+files to see what happens before they need data (`~/neutron-games/scripts/bintrace.sh`):
+- **Warframe**: imports d3d11 and d3d12, so auto now falls back to DXMT when D3DMetal
+  isn't available (it errored before). Steam init fails, it carries on (no relaunch),
+  initialises its engine and stops at "Error" after loading the language cache (no data).
+- **Elden Ring**: D3D12 only. On CrossOver 24 + D3DMetal it stays running for 45 s with no
+  Steam relaunch. On Wine 11 without GPTK Neutron says to register GPTK.
+- **BeamNG.drive** (auto: wined3d, since `BeamNG.drive.exe` is a launcher that loads its
+  renderer from `Bin64` at runtime), **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3**
+  (UE4 → DXMT `-dx11`): all still running after 40 s; none relaunch through Steam.
+
+Linux-only installs on the desktop:
 Valheim, Megabonk, Barony and others.
 
 So far, across 52 launched games, 39 reach a rendered window on the patched Gcenx 11.18 +

@@ -104,6 +104,13 @@ public enum BackendResolver {
             )
         }
         if imports.contains("d3d12.dll") {
+            // Games that also import D3D11 usually have a D3D11 renderer too (Warframe), so
+            // DXMT can run them when D3DMetal can't.
+            if imports.contains("d3d11.dll") {
+                return BackendRecommendation(backend: .d3dmetal,
+                                             reason: "imports d3d12.dll and d3d11.dll; D3DMetal runs both, DXMT the D3D11 path",
+                                             fallback: .dxmt)
+            }
             return BackendRecommendation(backend: .d3dmetal, reason: "imports d3d12.dll; D3D12 needs D3DMetal")
         }
         if let dll = d3d11.first(where: { imports.contains($0) }) {

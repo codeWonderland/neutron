@@ -175,6 +175,34 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
 - **Steam's black sign-in window** matches DXMT issue #141: Chromium's ANGLE
   `SwapChain11::reset` fails with `EGL_BAD_ALLOC` on DXMT. On wined3d, ANGLE gets only FL 9.3.
 
+- **Bugsnax** (OpenGL): asks `wglCreateContextAttribsARB` for an OpenGL **4.4** context;
+  winemac logs "Profile version 4.4 not supported" (macOS stops at 4.1), then the game uses
+  the missing context. **Idle Colony** asks for a **3.3 compatibility** profile (profile mask
+  2); macOS has no compatibility contexts above 2.1. Both are macOS OpenGL limits.
+- **Steam relaunches confirmed by tracing** (`+process`, a `steam://run/<id>` in
+  `ShellExecute`): Dark Souls III (374320), Palworld (1623730), Deadzone Rogue 2 (4731550),
+  Skyrim SE (489830). Binaries-only copies are enough to check this, since the relaunch
+  happens before any game data loads.
+- **Satisfactory** (UE5, full copy): skipping its stub first failed with "Failed to open
+  descriptor file ../../../FactoryGameSteam/FactoryGameSteam.uproject". The stub passes the
+  project name (`FactoryGame`) as the first argument and the exe is named differently, so
+  Neutron now passes the project folder (the one with `Content/Paks`) when it skips a stub.
+  After that:
+  - D3D11 on DXMT asserts in `FD3D11DynamicRHI::PollQueryResults` (`TOptional<FTimestampCalibration>`
+    unset): DXMT has no GPU timestamp calibration.
+  - Default RHI on Wine 11 (D3D12): "Failed to choose a D3D12 Adapter" on vkd3d, then the
+    same D3D11 assert.
+  - D3D12 on D3DMetal (CrossOver 24): "Assertion failed: GGlobalSamplerDescriptorHeapSize <=
+    MaximumSamplerHeapSize". Lowering `D3D12.GlobalSamplerDescriptorHeapSize` via `-ini:`,
+    `-dpcvars=` or `Engine/Config/ConsoleVariables.ini` doesn't change it.
+  No route works yet; each is a translation-layer gap.
+- **Don't register a `steam:` URL handler in prefixes.** Tried as a way to report
+  relaunches (a handler that only records the URL): Steamworks then treats Steam as
+  installed, and games that ran fine without Steam start insisting on relaunching (Loop
+  Tower: "RestartAppIfNecessary check failed, the game is not allowed to continue"). With no
+  handler, `SteamAPI_RestartAppIfNecessary` lets them run. Reverted. Note for Phase 3: once
+  Windows Steam is installed in a prefix, every Steamworks game there will expect it running.
+
 ### DXVK-macOS (fourth-backend check, 2026-10-09)
 
 Gcenx/DXVK-macOS `v1.10.3-20230507-repack` `-builtin` ships builtin-marked

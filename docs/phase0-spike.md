@@ -327,9 +327,12 @@ Failures:
 | FAIL | Skyrim Special Edition | Exits within seconds (Steam DRM wrapper; needs the client) |
 | FAIL | Bugsnax (OpenGL: GLEW + Irrlicht) | Null-pointer read in `Bugsnax.exe` after its OpenVR probe; plausibly a missing GL ≥ 4.2 feature on macOS (unverified) |
 
-Not tested (too big for the free disk at the time, 20–98 GB): Dark Souls III, Elden Ring
-and Nightreign (Easy Anti-Cheat), Satisfactory, Palworld, Warframe, BeamNG.drive, Icarus,
-Borderlands 3; Walkabout Mini Golf (14.6 GB, mainly VR). Linux-only installs on the desktop:
+Tested later, one at a time: Dark Souls III, Palworld (relaunch via Steam, traced),
+Satisfactory (see Diagnoses), Elden Ring Nightreign (exits; Easy Anti-Cheat game normally
+started via `start_protected_game.exe`, no Steam relaunch), Walkabout Mini Golf (Unity
+6000.3; DXMT device and swapchain come up, then it initialises Oculus/OpenXR and stays black,
+so it's VR-only). Not tested because they don't fit on this Mac's free disk even one at a
+time (51–98 GB): Elden Ring, Warframe, BeamNG.drive, Icarus, Borderlands 3. Linux-only installs on the desktop:
 Valheim, Megabonk, Barony and others.
 
 So far, across 52 launched games, 39 reach a rendered window on the patched Gcenx 11.18 +

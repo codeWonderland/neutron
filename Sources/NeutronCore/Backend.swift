@@ -97,9 +97,10 @@ public enum BackendResolver {
                     fallback: .dxmt
                 )
             }
+            let flags = engine.engine.arguments(for: .dxmt, userArguments: [])
             return BackendRecommendation(
                 backend: .dxmt,
-                reason: "\(name) can render with D3D11 (\(engine.engine.arguments(for: .dxmt, userArguments: []).joined(separator: " "))), which runs on DXMT"
+                reason: "\(name) can render with D3D11" + (flags.isEmpty ? "" : " (\(flags.joined(separator: " ")))") + ", which runs on DXMT"
             )
         }
         if imports.contains("d3d12.dll") {

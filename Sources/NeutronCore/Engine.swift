@@ -46,7 +46,10 @@ public enum GameEngine: Equatable, Sendable {
 
     /// Extra launch arguments for `backend`.
     ///
-    /// Unity and Unreal on backends without D3D12 get their force-D3D11 flag. Godot 4 gets
+    /// Unreal on backends without D3D12 gets `-dx11`. Unity gets nothing: it tries D3D12,
+    /// which fails on these Wines, and falls back to D3D11 by itself, while `-force-d3d11`
+    /// breaks Unity 6 builds that ship no D3D11 shaders ("Forced GfxDevice 'Direct3D 11' was
+    /// not built", Database Detective). Godot 4 gets
     /// `--rendering-driver vulkan` (except on D3DMetal): under Wine its default driver fails
     /// and it falls back to the OpenGL Compatibility renderer, while Vulkan runs Forward+
     /// through Wine's MoltenVK (Phase 0, Fortune Mill). Godot 3 only has OpenGL.
@@ -54,7 +57,7 @@ public enum GameEngine: Equatable, Sendable {
         guard backend != .d3dmetal else { return [] }
         if userArguments.contains(where: { apiArguments.contains($0.lowercased()) }) { return [] }
         switch self {
-        case .unity: return ["-force-d3d11"]
+        case .unity: return []
         case .unreal: return ["-dx11"]
         case .godot: return (majorVersion ?? 4) >= 4 ? ["--rendering-driver", "vulkan"] : []
         }

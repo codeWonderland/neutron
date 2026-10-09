@@ -59,15 +59,42 @@ public struct BackendSetup: Equatable, Sendable {
 public struct BackendRecommendation: Equatable, Sendable {
     public let backend: GraphicsBackend
     public let reason: String
+    /// Used instead when `backend`'s runtime isn't registered (e.g. no GPTK): an engine game
+    /// that can be switched to D3D11 still runs on DXMT.
+    public var fallback: GraphicsBackend?
+
+    public init(backend: GraphicsBackend, reason: String, fallback: GraphicsBackend? = nil) {
+        self.backend = backend
+        self.reason = reason
+        self.fallback = fallback
+    }
 }
 
 public enum BackendResolver {
-    /// Picks a backend from the DLLs a game imports (lowercased names, e.g. "d3d11.dll").
-    public static func recommend(imports: Set<String>) -> BackendRecommendation {
+    /// Picks a backend from the DLLs a game imports (lowercased names, e.g. "d3d11.dll") and,
+    /// for engines that choose their renderer at runtime, from what the engine ships.
+    public static func recommend(imports: Set<String>, engine: EngineDetection? = nil) -> BackendRecommendation {
+        let d3d11 = ["d3d11.dll", "dxgi.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll"]
+        // Engines often load their renderer at runtime (many UnityPlayer.dll builds import
+        // only opengl32.dll), so trust the engine over the import table.
+        if let engine, engine.engine.supportsD3D11 {
+            let name = engine.engine.description
+            if engine.shipsD3D12AgilitySDK {
+                return BackendRecommendation(
+                    backend: .d3dmetal,
+                    reason: "\(name) ships the D3D12 Agility SDK, so D3D12 is likely its main renderer",
+                    fallback: .dxmt
+                )
+            }
+            return BackendRecommendation(
+                backend: .dxmt,
+                reason: "\(name) can render with D3D11 (\(engine.engine.forceD3D11Argument)), which runs on DXMT"
+            )
+        }
         if imports.contains("d3d12.dll") {
             return BackendRecommendation(backend: .d3dmetal, reason: "imports d3d12.dll; D3D12 needs D3DMetal")
         }
-        if let dll = ["d3d11.dll", "dxgi.dll", "d3d10.dll", "d3d10_1.dll", "d3d10core.dll"].first(where: { imports.contains($0) }) {
+        if let dll = d3d11.first(where: { imports.contains($0) }) {
             return BackendRecommendation(backend: .dxmt, reason: "imports \(dll); D3D10/11 runs on DXMT")
         }
         if let dll = ["d3d9.dll", "d3d8.dll", "ddraw.dll", "opengl32.dll"].first(where: { imports.contains($0) }) {

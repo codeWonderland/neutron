@@ -13,6 +13,8 @@ public struct LaunchPlan: Sendable {
     public var composition: ComposedRuntime?
     public var prefixName: String
     public var winePrefix: URL
+    /// Why the plan looks the way it does (backend fallback, engine flags), for the CLI to show.
+    public var notes: [String] = []
 }
 
 public struct LaunchOptions: Sendable {
@@ -22,11 +24,14 @@ public struct LaunchOptions: Sendable {
     public var hud = false
     /// WINEDEBUG channels; nil silences Wine's logging.
     public var debug: String?
+    /// Add the engine's force-D3D11 flag when the backend has no D3D12 (Unity, Unreal).
+    public var engineArguments = true
 
-    public init(backend: GraphicsBackend? = nil, hud: Bool = false, debug: String? = nil) {
+    public init(backend: GraphicsBackend? = nil, hud: Bool = false, debug: String? = nil, engineArguments: Bool = true) {
         self.backend = backend
         self.hud = hud
         self.debug = debug
+        self.engineArguments = engineArguments
     }
 }
 
@@ -45,14 +50,38 @@ public struct Launcher: Sendable {
     /// Plan for running a Windows program, picking a graphics backend.
     public func gamePlan(prefix: Prefix, program: URL, arguments: [String] = [],
                          options: LaunchOptions) throws -> LaunchPlan {
-        let backend = try options.backend ?? prefix.config.backend ?? GameScan(executable: program).recommendation.backend
+        var notes: [String] = []
+        let chosen = options.backend ?? prefix.config.backend
+        // Engine flags apply to explicit backends too, so scan whenever the file is readable.
+        let scan = chosen == nil ? try GameScan(executable: program) : try? GameScan(executable: program)
+        var backend = chosen ?? scan!.recommendation.backend
+        if chosen == nil, let fallback = scan?.recommendation.fallback,
+           !isAvailable(backend), isAvailable(fallback) {
+            notes.append("no \(backend.requiredRuntime?.rawValue ?? backend.rawValue) runtime registered; using \(fallback.rawValue) instead of \(backend.rawValue)")
+            backend = fallback
+        }
         let runtime = try backend.requiredRuntime.map { try runtimes.find($0) }
         let setup = try BackendSetup.make(for: backend, runtime: runtime)
 
-        var plan = try winePlan(prefix: prefix, arguments: [program.path] + arguments, options: options, setup: setup)
+        var engineArguments: [String] = []
+        if options.engineArguments, let engine = scan?.engine?.engine {
+            engineArguments = engine.arguments(for: backend, userArguments: arguments)
+            if !engineArguments.isEmpty {
+                notes.append("\(engine.description) on \(backend.rawValue): adding \(engineArguments.joined(separator: " ")) (disable with --no-engine-args)")
+            }
+        }
+
+        var plan = try winePlan(prefix: prefix, arguments: [program.path] + engineArguments + arguments,
+                                options: options, setup: setup)
         plan.workingDirectory = program.deletingLastPathComponent()
         plan.backend = backend
+        plan.notes = notes
         return plan
+    }
+
+    private func isAvailable(_ backend: GraphicsBackend) -> Bool {
+        guard let kind = backend.requiredRuntime else { return true }
+        return (try? runtimes.find(kind)) != nil
     }
 
     /// Plan for any Wine command (winecfg, regedit, an installer…) without backend setup.

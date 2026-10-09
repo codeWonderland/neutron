@@ -1,0 +1,142 @@
+import XCTest
+@testable import NeutronCore
+
+final class EngineTests: XCTestCase {
+    private var root: URL!
+
+    override func setUpWithError() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("neutron-tests-\(UUID().uuidString)")
+    }
+
+    override func tearDownWithError() throws {
+        try? FileManager.default.removeItem(at: root)
+    }
+
+    /// A Unity game laid out like Berry Bounce: the renderer in UnityPlayer.dll, which (like
+    /// many real builds) imports only opengl32 and loads D3D at runtime.
+    private func makeUnityGame(version: String = "6000.3.0f1", agility: Bool) throws -> URL {
+        let game = root.appendingPathComponent("Berry Bounce")
+        let exe = game.appendingPathComponent("BerryBounce.exe")
+        try Fixtures.write(exe, Fixtures.makePE(imports: ["KERNEL32.dll"]))
+        try Fixtures.write(game.appendingPathComponent("UnityPlayer.dll"), Fixtures.makePE(imports: ["OPENGL32.dll"]))
+        var header = Data(repeating: 0, count: 0x30)
+        header.append(Data("\(version)\0".utf8))
+        try Fixtures.write(game.appendingPathComponent("BerryBounce_Data/globalgamemanagers"), header)
+        if agility { try Fixtures.write(game.appendingPathComponent("D3D12/D3D12Core.dll")) }
+        return exe
+    }
+
+    /// An Unreal game with a stub launcher, like Deep Rock Galactic (`FSD.exe`).
+    private func makeUnrealGame(stub: String = "FSD", shipping: String = "FSD-Win64-Shipping.exe",
+                                engineFolder: Bool = true, agility: Bool = false) throws -> (stub: URL, shipping: URL) {
+        let game = root.appendingPathComponent("Deep Rock Galactic")
+        let stubURL = game.appendingPathComponent("\(stub).exe")
+        try Fixtures.write(stubURL, Fixtures.makePE(imports: ["KERNEL32.dll"]))
+        let binaries = game.appendingPathComponent("FSD/Binaries/Win64")
+        var marker = Data(repeating: 0, count: 64)
+        marker.append("++UE4+Release-4.27".data(using: .utf16LittleEndian)!)
+        var shippingData = Fixtures.makePE(imports: ["d3d11.dll", "d3d12.dll", "dxgi.dll"])
+        shippingData.append(marker)
+        let shippingURL = binaries.appendingPathComponent(shipping)
+        try Fixtures.write(shippingURL, shippingData)
+        if engineFolder { try FileManager.default.createDirectory(at: game.appendingPathComponent("Engine/Binaries"), withIntermediateDirectories: true) }
+        if agility { try Fixtures.write(binaries.appendingPathComponent("D3D12/x64/D3D12Core.dll")) }
+        return (stubURL, shippingURL)
+    }
+
+    func testUnityWithAgilitySDKPrefersD3DMetalWithDXMTFallback() throws {
+        let scan = try GameScan(executable: try makeUnityGame(agility: true))
+        XCTAssertEqual(scan.engine?.engine, .unity(version: "6000.3.0f1"))
+        XCTAssertEqual(scan.engine?.shipsD3D12AgilitySDK, true)
+        XCTAssertEqual(scan.recommendation.backend, .d3dmetal)
+        XCTAssertEqual(scan.recommendation.fallback, .dxmt)
+    }
+
+    func testUnityWithoutAgilitySDKUsesDXMTEvenWithoutD3DImports() throws {
+        let scan = try GameScan(executable: try makeUnityGame(version: "2019.4.29f1", agility: false))
+        XCTAssertEqual(scan.engine?.engine, .unity(version: "2019.4.29f1"))
+        XCTAssertEqual(scan.imports, ["kernel32.dll", "opengl32.dll"])
+        XCTAssertEqual(scan.recommendation.backend, .dxmt)
+        XCTAssertNil(scan.recommendation.fallback)
+    }
+
+    func testOldUnityFallsBackToImportRules() throws {
+        XCTAssertFalse(GameEngine.unity(version: "4.7.2f1").supportsD3D11)
+        XCTAssertTrue(GameEngine.unity(version: nil).supportsD3D11)
+        let scan = try GameScan(executable: try makeUnityGame(version: "4.7.2f1", agility: false))
+        XCTAssertEqual(scan.recommendation.backend, .wined3d)
+    }
+
+    func testUnrealStubFollowsShippingExecutable() throws {
+        let game = try makeUnrealGame()
+        let scan = try GameScan(executable: game.stub)
+        XCTAssertEqual(scan.engine?.renderer.path, game.shipping.path)
+        XCTAssertEqual(scan.engine?.engine, .unreal(version: "4.27"))
+        XCTAssertTrue(scan.imports.contains("d3d12.dll"))
+        XCTAssertEqual(scan.recommendation.backend, .dxmt)
+    }
+
+    func testUnrealAgilitySDKNextToShippingExe() throws {
+        let scan = try GameScan(executable: try makeUnrealGame(agility: true).stub)
+        XCTAssertEqual(scan.recommendation.backend, .d3dmetal)
+        XCTAssertEqual(scan.recommendation.fallback, .dxmt)
+    }
+
+    func testUnrealStubNeedsNameMatchWithoutEngineFolder() throws {
+        let unnamed = try makeUnrealGame(stub: "Launcher", engineFolder: false)
+        XCTAssertNil(EngineDetection.detect(executable: unnamed.stub))
+        // With Engine/ next to it, a lone Shipping exe is enough.
+        try FileManager.default.createDirectory(at: unnamed.stub.deletingLastPathComponent().appendingPathComponent("Engine"),
+                                                withIntermediateDirectories: true)
+        XCTAssertEqual(EngineDetection.detect(executable: unnamed.stub)?.renderer.path, unnamed.shipping.path)
+    }
+
+    func testEngineArguments() {
+        let unity = GameEngine.unity(version: "2022.3.1f1")
+        XCTAssertEqual(unity.arguments(for: .dxmt, userArguments: []), ["-force-d3d11"])
+        XCTAssertEqual(unity.arguments(for: .wined3d, userArguments: []), ["-force-d3d11"])
+        XCTAssertEqual(unity.arguments(for: .d3dmetal, userArguments: []), [])
+        XCTAssertEqual(unity.arguments(for: .dxmt, userArguments: ["-Force-D3D12"]), [])
+        XCTAssertEqual(GameEngine.unreal(version: nil).arguments(for: .dxmt, userArguments: ["-windowed"]), ["-dx11"])
+    }
+
+    func testMiddlewareDLLsDontForceD3D12() throws {
+        let game = root.appendingPathComponent("Dark Deity")
+        let exe = game.appendingPathComponent("DarkDeity.exe")
+        try Fixtures.write(exe, Fixtures.makePE(imports: ["d3d11.dll", "dxgi.dll"]))
+        try Fixtures.write(game.appendingPathComponent("EOSSDK-Win64-Shipping.dll"), Fixtures.makePE(imports: ["d3d12.dll"]))
+        let scan = try GameScan(executable: exe)
+        XCTAssertNil(scan.engine)
+        XCTAssertEqual(scan.recommendation.backend, .dxmt)
+    }
+
+    func testLauncherFallsBackAndAddsEngineFlag() throws {
+        let paths = NeutronPaths(root: root.appendingPathComponent("state"))
+        let runtimes = RuntimeStore(paths: paths)
+        let wine = paths.root.appendingPathComponent("builds/wine")
+        try Fixtures.write(wine.appendingPathComponent("bin/wine"))
+        try runtimes.add(kind: .wine, path: wine)
+        let dxmt = paths.root.appendingPathComponent("builds/dxmt")
+        try Fixtures.write(dxmt.appendingPathComponent("x86_64-windows/d3d11.dll"))
+        try runtimes.add(kind: .dxmt, path: dxmt)
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "default"))
+        let launcher = Launcher(runtimes: runtimes)
+        let exe = try makeUnityGame(agility: true)
+
+        // No GPTK registered: falls back from d3dmetal to dxmt and forces D3D11.
+        let plan = try launcher.gamePlan(prefix: prefix, program: exe, arguments: ["-windowed"], options: LaunchOptions())
+        XCTAssertEqual(plan.backend, .dxmt)
+        XCTAssertEqual(plan.arguments, [exe.path, "-force-d3d11", "-windowed"])
+        XCTAssertEqual(plan.notes.count, 2)
+
+        // An explicit backend still gets the engine flag; --no-engine-args turns it off.
+        let explicit = try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions(backend: .dxmt))
+        XCTAssertEqual(explicit.arguments, [exe.path, "-force-d3d11"])
+        let plain = try launcher.gamePlan(prefix: prefix, program: exe,
+                                          options: LaunchOptions(backend: .dxmt, engineArguments: false))
+        XCTAssertEqual(plain.arguments, [exe.path])
+
+        // Without GPTK or a fallback, d3dmetal reports the missing runtime.
+        XCTAssertThrowsError(try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions(backend: .d3dmetal)))
+    }
+}

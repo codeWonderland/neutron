@@ -128,10 +128,18 @@ copied off a Linux desktop). The PE parser handled every real Windows exe. Findi
 - Steam games call `SteamAPI_Init`; add `steam_appid.txt` (the app ID) next to the exe.
   GameMaker's Steamworks extension deletes that file on every launch.
 
+After engine-aware detection (same library; folder structure, Agility SDK files and
+Unity data headers mirrored; 34 Unity and 11 Unreal games): 27 Unity 6 / UE5 games with the Agility SDK → `d3dmetal`
+with a DXMT fallback; 18 Unity 2018–2023 / UE4 games (and Unity 6 builds without the SDK) → `dxmt` with `-force-d3d11` /
+`-dx11` (previously most went to wined3d or d3dmetal); Dark Deity (GameMaker) → `dxmt`
+once the EOS SDK DLL is ignored. Still unhandled: Godot and other engines that load their
+renderer at runtime (Fortune Mill, CosmosKitten…) fall to wined3d.
+
 ### Games
 
 | Game | API | Mac / macOS | Backend | Works? | FPS | Env / fixes needed | Notes |
 |---|---|---|---|---|---|---|---|
 | Loop Tower Demo (GameMaker 2024.14) | D3D11 | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 | **Yes**: window renders (checked by eye) | not measured | `steam_appid.txt` (4480440); Wine `--library-path` to Sikarugir Template Frameworks | Steam init fails without a Steam client, game continues. Fails to present on upstream Wine 11.18 |
+| Berry Bounce (Unity 6000.3.0f1) | D3D11 (forced) | M1 / 15.5 | dxmt v0.80 on Sikarugir CX 24.0.7_7 (auto: d3dmetal → no GPTK → dxmt + `-force-d3d11`) | Starts: Player.log shows "Forcing GfxDevice: Direct3D 11", renderer Apple M1 | not measured | `steam_appid.txt` (4454860) | Log: `ID3D11Fence` creation fails (0x80004005), game continues |
 
 Rows here become the first entries in the Phase 2 compatibility database.

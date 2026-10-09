@@ -140,22 +140,36 @@ private struct ByteReader {
 }
 
 public struct GameScan: Sendable {
+    /// The executable that will be launched.
     public let executable: PEInfo
-    /// Imports of the executable plus every DLL next to it, since engines like Unity keep
-    /// their renderer in a sibling DLL (UnityPlayer.dll) rather than the exe.
+    /// Engine details, when the game uses Unity or Unreal.
+    public let engine: EngineDetection?
+    /// Imports of the renderer binary (the exe, or the Unreal Shipping exe a stub starts)
+    /// plus every DLL next to it, since engines like Unity keep their renderer in a sibling
+    /// DLL (UnityPlayer.dll) rather than the exe.
     public let imports: Set<String>
     public let recommendation: BackendRecommendation
 
     public init(executable url: URL) throws {
         guard FileManager.default.fileExists(atPath: url.path) else { throw NeutronError.fileNotFound(url.path) }
         executable = try PEInfo(contentsOf: url)
-        var all = executable.imports
-        let directory = url.deletingLastPathComponent()
+        engine = EngineDetection.detect(executable: url)
+        let renderer = engine?.renderer ?? url
+        var all = renderer == url ? executable.imports : ((try? PEInfo(contentsOf: renderer))?.imports ?? [])
+        let directory = renderer.deletingLastPathComponent()
         let siblings = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        for dll in siblings where dll.pathExtension.lowercased() == "dll" {
+        for dll in siblings where dll.pathExtension.lowercased() == "dll" && !GameScan.isMiddleware(dll) {
             if let info = try? PEInfo(contentsOf: dll) { all.formUnion(info.imports) }
         }
         imports = all
-        recommendation = BackendResolver.recommend(imports: all)
+        recommendation = BackendResolver.recommend(imports: all, engine: engine)
+    }
+
+    /// Middleware that imports graphics APIs for its own overlay or embedded browser, not
+    /// for the game's renderer (Epic Online Services and CEF import d3d12 even in D3D11 games).
+    static func isMiddleware(_ dll: URL) -> Bool {
+        let name = dll.lastPathComponent.lowercased()
+        return ["eossdk-", "libcef", "steam_api", "discord_", "gameoverlayrenderer", "galaxy"]
+            .contains { name.hasPrefix($0) }
     }
 }

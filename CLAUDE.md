@@ -11,8 +11,8 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
   design **failed** and was replaced by composed runtimes. DXMT runs a real game (Loop
   Tower Demo) but only on a CrossOver-based Wine (Sikarugir CX 24 engine); upstream Wine
   can create a device but not present frames.
-- **Known wrong:** auto-detection sends Unity/Unreal games to D3DMetal (they import both
-  d3d11 and d3d12) and Unreal stub exes to wined3d. Engine-aware detection is the next fix.
+- Engine-aware detection is built and checked against a real 105-game library
+  (`docs/phase0-spike.md`). Godot and other runtime-loading engines still fall to wined3d.
 - **Still unverified:** GPTK/D3DMetal (layout, `lib/external` overlay, D3D12) and D3D9 or
   32-bit games. Don't build on those assumptions until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
@@ -39,8 +39,12 @@ every push and PR. There is no linter configured.
 `Launcher.gamePlan` (`Launcher.swift`) is the core path:
 
 1. **Backend choice**, first match wins: `--backend` flag → backend pinned in the prefix's
-   config → `GameScan` auto-detect (`PEInfo.swift` reads PE import tables of the exe and
-   sibling DLLs; `BackendResolver` maps d3d12 → `d3dmetal`, d3d10/11/dxgi → `dxmt`, else `wined3d`).
+   config → `GameScan` auto-detect. `Engine.swift` recognises Unity and Unreal (following
+   Unreal stub exes to `*-Shipping.exe`); for those, a shipped D3D12 Agility SDK means
+   `d3dmetal` (with a `dxmt` fallback if no GPTK is registered), else `dxmt`. Other games
+   use PE imports of the exe and sibling DLLs (minus middleware like EOS/CEF): d3d12 →
+   `d3dmetal`, d3d10/11/dxgi → `dxmt`, else `wined3d`. On backends without D3D12, engine
+   games get `-force-d3d11` (Unity) or `-dx11` (Unreal) unless `--no-engine-args`.
 2. **Runtimes**: each backend's `requiredRuntime` (dxmt → `dxmt`, d3dmetal → `gptk`) and Wine
    (version pinned by the prefix, else newest) come from `RuntimeStore`, a JSON manifest that
    records paths to user-downloaded runtimes; nothing is copied. `Runtime` computes per-kind
@@ -66,10 +70,12 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
 
 - `Sources/NeutronCore/`: all logic, no CLI/UI code (a SwiftUI app will reuse it).
   `Runtime.swift` (runtime registry and layouts), `Prefix.swift`, `Backend.swift` (backend
-  setup + auto-detection), `ComposedRuntime.swift` (clone + overlay), `PEInfo.swift` (PE
-  import parsing, `GameScan`), `Launcher.swift` (`LaunchPlan` building and running).
+  setup + `BackendResolver`), `Engine.swift` (Unity/Unreal detection, engine flags),
+  `ComposedRuntime.swift` (clone + overlay), `PEInfo.swift` (PE import parsing, `GameScan`),
+  `Launcher.swift` (`LaunchPlan` building and running).
 - `Sources/neutron/`: swift-argument-parser CLI; one file per command group under `Commands/`.
-- `Tests/NeutronCoreTests/`: XCTest. Tests use a temp `NeutronPaths` root and fake runtimes.
+- `Tests/NeutronCoreTests/`: XCTest. Tests use a temp `NeutronPaths` root and fake runtimes;
+  `Fixtures.makePE(imports:)` builds minimal PE files for detection tests.
 - `docs/phase0-spike.md`: hardware-spike checklist, findings and results tables.
 - `tools/d3dprobe/`: tiny D3D11/D3D12 Windows program for checking a backend without a game
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake

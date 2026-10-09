@@ -81,6 +81,9 @@ neutron detect ~/Games/MyGame/MyGame.exe     # shows engine, graphics APIs and t
 neutron run ~/Games/MyGame/MyGame.exe --hud  # auto-picks a backend; --backend to override
 neutron run game.exe --dry-run               # print the env and command instead of running
 
+# Pin runtime versions per prefix (e.g. to compare DXMT builds); `newest` unpins
+neutron prefix set-runtime default dxmt dxmt-v0.80
+
 # Wine tools inside a prefix, and stopping everything in it
 neutron wine -- winecfg
 neutron kill                                  # or --all; uses the prefix's own wineserver

@@ -9,13 +9,30 @@ public struct PrefixConfig: Codable, Equatable, Sendable {
     public var backend: GraphicsBackend?
     /// Extra environment applied on every launch (wins over Neutron's defaults).
     public var environment: [String: String]
+    /// Pinned backend runtime versions by kind ("dxmt", "gptk"); missing kinds use the newest.
+    /// Wine's pin is `wineVersion`.
+    public var runtimeVersions: [String: String]?
 
     public init(name: String, wineVersion: String? = nil, backend: GraphicsBackend? = nil,
-                environment: [String: String] = [:]) {
+                environment: [String: String] = [:], runtimeVersions: [String: String]? = nil) {
         self.name = name
         self.wineVersion = wineVersion
         self.backend = backend
         self.environment = environment
+        self.runtimeVersions = runtimeVersions
+    }
+
+    /// The pinned version of a runtime kind, or nil for the newest registered.
+    public func pinnedVersion(of kind: RuntimeKind) -> String? {
+        kind == .wine ? wineVersion : runtimeVersions?[kind.rawValue]
+    }
+
+    /// Pins (or with nil, unpins) a runtime kind's version.
+    public mutating func pin(_ kind: RuntimeKind, version: String?) {
+        if kind == .wine { wineVersion = version; return }
+        var pins = runtimeVersions ?? [:]
+        pins[kind.rawValue] = version
+        runtimeVersions = pins.isEmpty ? nil : pins
     }
 }
 

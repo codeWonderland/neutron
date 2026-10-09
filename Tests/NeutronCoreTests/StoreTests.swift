@@ -181,6 +181,38 @@ final class StoreTests: XCTestCase {
         XCTAssertThrowsError(try runtimes.setGStreamer(wineVersion: "11.18", gstreamer: frameworks))
     }
 
+    /// A prefix can pin a DXMT build; others use the newest. Old configs without pins still load.
+    func testPrefixPinsBackendRuntimeVersion() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        try runtimes.add(kind: .wine, path: makeWine("11.18"))
+        for version in ["v0.80", "v0.90"] {
+            let root = paths.root.appendingPathComponent("builds/dxmt-\(version)")
+            try touch(root.appendingPathComponent("x86_64-windows/d3d11.dll"))
+            try runtimes.add(kind: .dxmt, path: root, version: version)
+        }
+        let store = PrefixStore(paths: paths)
+        var prefix = try store.create(PrefixConfig(name: "pinned"))
+        let launcher = Launcher(runtimes: runtimes)
+        let game = URL(fileURLWithPath: "/games/Game/game.exe")
+        XCTAssertEqual(try launcher.gamePlan(prefix: prefix, program: game, options: LaunchOptions(backend: .dxmt))
+            .composition?.backend.version, "v0.90")
+
+        prefix.config.pin(.dxmt, version: "v0.80")
+        try store.save(prefix)
+        let loaded = try store.get("pinned")
+        XCTAssertEqual(loaded.config.pinnedVersion(of: .dxmt), "v0.80")
+        XCTAssertEqual(try launcher.gamePlan(prefix: loaded, program: game, options: LaunchOptions(backend: .dxmt))
+            .composition?.backend.version, "v0.80")
+
+        prefix.config.pin(.dxmt, version: nil)
+        XCTAssertNil(prefix.config.runtimeVersions)
+        prefix.config.pin(.wine, version: "11.18")
+        XCTAssertEqual(prefix.config.wineVersion, "11.18")
+
+        let old = try JSONDecoder().decode(PrefixConfig.self, from: Data(#"{"name":"old","environment":{}}"#.utf8))
+        XCTAssertNil(old.runtimeVersions)
+    }
+
     /// Release archives extract into a wrapper folder; `runtime add` should look inside it.
     func testRuntimeRootFoundInsideWrapperFolder() throws {
         let wineWrapper = paths.root.appendingPathComponent("dl/wine-devel-11.18")

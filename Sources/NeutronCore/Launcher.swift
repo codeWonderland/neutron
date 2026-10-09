@@ -80,6 +80,10 @@ public struct Launcher: Sendable {
         }
         let wine = try runtimes.find(.wine, version: prefix.config.wineVersion)
         let capabilities = self.capabilities(wine)
+        func isAvailable(_ backend: GraphicsBackend) -> Bool {
+            guard let kind = backend.requiredRuntime else { return true }
+            return (try? runtimes.find(kind, version: prefix.config.pinnedVersion(of: kind))) != nil
+        }
         if chosen == nil, let fallback = scan?.recommendation.fallback,
            isAvailable(fallback), capabilities.supports(fallback) {
             if !isAvailable(backend) {
@@ -93,7 +97,7 @@ public struct Launcher: Sendable {
         if let problem = capabilities.problem(with: backend) {
             notes.append("warning: wine \(wine.version) probably can't run \(backend.rawValue): \(problem)")
         }
-        let runtime = try backend.requiredRuntime.map { try runtimes.find($0) }
+        let runtime = try backend.requiredRuntime.map { try runtimes.find($0, version: prefix.config.pinnedVersion(of: $0)) }
         let setup = try BackendSetup.make(for: backend, runtime: runtime)
 
         var engineArguments: [String] = []
@@ -127,11 +131,6 @@ public struct Launcher: Sendable {
         plan.backend = backend
         plan.notes = notes
         return plan
-    }
-
-    private func isAvailable(_ backend: GraphicsBackend) -> Bool {
-        guard let kind = backend.requiredRuntime else { return true }
-        return (try? runtimes.find(kind)) != nil
     }
 
     /// Plan for any Wine command (winecfg, regedit, an installer…) without backend setup.

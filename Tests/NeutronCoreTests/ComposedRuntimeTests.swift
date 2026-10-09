@@ -71,6 +71,20 @@ final class ComposedRuntimeTests: XCTestCase {
         XCTAssertEqual(try read(rebuilt.path.appendingPathComponent("lib/wine/x86_64-windows/kernel32.dll")), "wine 2")
     }
 
+    /// Updating a runtime in place (same folder, new files) rebuilds the composed build.
+    func testRebuildsWhenBackendFilesChange() throws {
+        let (wine, dxmt) = try makeRuntimes()
+        let composed = ComposedRuntime(wine: wine, backend: dxmt, paths: paths)
+        try composed.build()
+        XCTAssertTrue(composed.isBuilt)
+
+        try write("dxmt d3d11 v2 (bigger)", to: dxmt.path.appendingPathComponent("x86_64-windows/d3d11.dll"))
+        XCTAssertFalse(composed.isBuilt)
+        try composed.build()
+        XCTAssertEqual(try read(composed.path.appendingPathComponent("lib/wine/x86_64-windows/d3d11.dll")), "dxmt d3d11 v2 (bigger)")
+        XCTAssertTrue(composed.isBuilt)
+    }
+
     func testMissingPrefixDLLs() throws {
         let (wine, dxmt) = try makeRuntimes()
         let composed = ComposedRuntime(wine: wine, backend: dxmt, paths: paths)

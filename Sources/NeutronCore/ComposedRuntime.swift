@@ -72,10 +72,23 @@ public struct ComposedRuntime: Equatable, Sendable {
         return files
     }
 
-    /// Records which runtimes a composed build came from, so a re-registered runtime rebuilds it.
+    /// Records what a composed build came from: the overlay rules' version, both runtime paths,
+    /// and the size and date of every overlaid file and of Wine's ntdll.so, so re-registering
+    /// or updating a runtime in place rebuilds it.
     private var stampURL: URL { path.appendingPathComponent(".neutron-composed.json") }
-    /// Bump `layout` when the overlay rules change, so older composed builds are rebuilt.
-    private var stamp: Data { Data("[3, \"\(wine.path.path)\", \"\(backend.path.path)\"]".utf8) }
+    private var stamp: Data {
+        let layout = 4  // bump when the overlay rules change
+        let sources = overlay.map(\.source) + [wine.path.appendingPathComponent("lib/wine/x86_64-unix/ntdll.so")]
+        let files = sources.map { url -> String in
+            // attributesOfItem doesn't follow symlinks, so GPTK's links count as themselves.
+            let attributes = (try? FileManager.default.attributesOfItem(atPath: url.path)) ?? [:]
+            let size = (attributes[.size] as? NSNumber)?.int64Value ?? -1
+            let date = (attributes[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
+            return "\(url.path):\(size):\(Int64(date))"
+        }
+        let object: [Any] = [layout, wine.path.path, backend.path.path, files]
+        return (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+    }
 
     public var isBuilt: Bool {
         (try? Data(contentsOf: stampURL)) == stamp

@@ -8,6 +8,11 @@
 //                       (what Media Foundation video playback in Unity relies on)
 //   d3dprobe.exe timestamp  D3D11 timestamp + disjoint queries around a clear (what Unreal's GPU
 //                       timing and its timestamp calibration rely on)
+//   d3dprobe.exe calibrate  Unreal Engine 5's D3D11 timestamp calibration, step by step: once an
+//                       event query issued after them has signalled, the timestamp and disjoint
+//                       queries must already have results (Windows completes queries in order)
+//   d3dprobe.exe queryorder  polls timestamp and disjoint queries without waiting, frame by frame,
+//                       and counts timestamps that were ready before their disjoint query
 //
 // Exit code 0 means the device was created.
 #define COBJMACROS
@@ -200,11 +205,113 @@ static int probe_timestamp(void) {
     return failures ? 1 : 0;
 }
 
+static int all_done(const int *a, const int *b, int n) {
+    for (int i = 0; i < n; i++) if (!a[i] || !b[i]) return 0;
+    return 1;
+}
+
+static int probe_queryorder(void) {
+    ID3D11Device *device = NULL;
+    ID3D11DeviceContext *context = NULL;
+    if (FAILED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION,
+                                 &device, NULL, &context))) { printf("D3D11CreateDevice failed\n"); return 1; }
+    D3D11_QUERY_DESC dj_desc = {D3D11_QUERY_TIMESTAMP_DISJOINT, 0}, ts_desc = {D3D11_QUERY_TIMESTAMP, 0};
+    D3D11_TEXTURE2D_DESC desc = {256, 256, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, {1, 0}, D3D11_USAGE_DEFAULT,
+                                 D3D11_BIND_RENDER_TARGET, 0, 0};
+    ID3D11Texture2D *texture = NULL;
+    ID3D11RenderTargetView *rtv = NULL;
+    ID3D11Device_CreateTexture2D(device, &desc, NULL, &texture);
+    ID3D11Device_CreateRenderTargetView(device, (ID3D11Resource *)texture, NULL, &rtv);
+    float color[4] = {0, 1, 0, 1};
+    enum { frames = 8 };
+    ID3D11Query *dj[frames], *ts[frames];
+    int ts_done[frames] = {0}, dj_done[frames] = {0}, early = 0, ts_first_ready = -1, dj_first_ready = -1;
+    for (int f = 0; f < frames; f++) {
+        ID3D11Device_CreateQuery(device, &dj_desc, &dj[f]);
+        ID3D11Device_CreateQuery(device, &ts_desc, &ts[f]);
+    }
+    /* Issue one "frame" per iteration, then poll every outstanding query once without flushing. */
+    for (int iter = 0; iter < 400 && !(iter > frames && all_done(ts_done, dj_done, frames)); iter++) {
+        if (iter < frames) {
+            ID3D11DeviceContext_Begin(context, (ID3D11Asynchronous *)dj[iter]);
+            for (int i = 0; i < 50; i++) ID3D11DeviceContext_ClearRenderTargetView(context, rtv, color);
+            ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)ts[iter]);
+            ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)dj[iter]);
+            ID3D11DeviceContext_Flush(context);
+        }
+        for (int f = 0; f < frames && f <= iter; f++) {
+            UINT64 t;
+            D3D11_QUERY_DATA_TIMESTAMP_DISJOINT d;
+            /* Disjoint first, so a timestamp only counts as early if its disjoint query still
+             * wasn't ready when polled just before it. */
+            if (!dj_done[f] && ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)dj[f], &d, sizeof(d),
+                                                           D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK) {
+                dj_done[f] = 1;
+                if (dj_first_ready < 0) dj_first_ready = iter;
+            }
+            if (!ts_done[f] && ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)ts[f], &t, sizeof(t),
+                                                           D3D11_ASYNC_GETDATA_DONOTFLUSH) == S_OK) {
+                ts_done[f] = 1;
+                if (ts_first_ready < 0) ts_first_ready = iter;
+                if (!dj_done[f]) early++;
+            }
+        }
+        Sleep(1);
+    }
+    int ts_count = 0, dj_count = 0;
+    for (int f = 0; f < frames; f++) { ts_count += ts_done[f]; dj_count += dj_done[f]; }
+    printf("timestamps ready %d/%d (first at poll %d), disjoint ready %d/%d (first at poll %d)\n",
+           ts_count, frames, ts_first_ready, dj_count, frames, dj_first_ready);
+    printf("timestamps ready while their disjoint query was not: %d\n", early);
+    return early || ts_count < frames || dj_count < frames ? 1 : 0;
+}
+
+/* Mirrors FD3D11DynamicRHI's calibration in UE 5 (Satisfactory): up to 10 attempts. */
+static int probe_calibrate(void) {
+    ID3D11Device *device = NULL;
+    ID3D11DeviceContext *context = NULL;
+    if (FAILED(D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION,
+                                 &device, NULL, &context))) { printf("D3D11CreateDevice failed\n"); return 1; }
+    D3D11_QUERY_DESC dj_desc = {D3D11_QUERY_TIMESTAMP_DISJOINT, 0}, ts_desc = {D3D11_QUERY_TIMESTAMP, 0},
+                     ev_desc = {D3D11_QUERY_EVENT, 0};
+    ID3D11Query *dj, *ts, *idle, *ev;
+    ID3D11Device_CreateQuery(device, &dj_desc, &dj);
+    ID3D11Device_CreateQuery(device, &ts_desc, &ts);
+    ID3D11Device_CreateQuery(device, &ev_desc, &idle);
+    ID3D11Device_CreateQuery(device, &ev_desc, &ev);
+    BOOL done = FALSE;
+    ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)idle);
+    ID3D11DeviceContext_Flush(context);
+    while (ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)idle, &done, sizeof(done), 0) != S_OK || !done) Sleep(0);
+    int ok = 0;
+    for (int attempt = 0; attempt < 10; attempt++) {
+        ID3D11DeviceContext_Begin(context, (ID3D11Asynchronous *)dj);
+        ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)ts);
+        ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)dj);
+        ID3D11DeviceContext_End(context, (ID3D11Asynchronous *)ev);
+        ID3D11DeviceContext_Flush(context);
+        done = FALSE;
+        while (ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)ev, &done, sizeof(done), 0) != S_OK || !done) {}
+        D3D11_QUERY_DATA_TIMESTAMP_DISJOINT d = {0};
+        UINT64 t = 0;
+        HRESULT hd = ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)dj, &d, sizeof(d), 0);
+        HRESULT ht = ID3D11DeviceContext_GetData(context, (ID3D11Asynchronous *)ts, &t, sizeof(t), 0);
+        printf("attempt %d: after the event signalled, disjoint 0x%08lx (disjoint=%d freq %llu), timestamp 0x%08lx (%llu)\n",
+               attempt, (unsigned long)hd, d.Disjoint, (unsigned long long)d.Frequency, (unsigned long)ht,
+               (unsigned long long)t);
+        if (hd == S_OK && !d.Disjoint && ht == S_OK && t) { ok = 1; break; }
+    }
+    printf(ok ? "calibration OK\n" : "calibration FAILED (Unreal 5 asserts: unset TOptional<FTimestampCalibration>)\n");
+    return ok ? 0 : 1;
+}
+
 int main(int argc, char **argv) {
     const char *mode = argc > 1 ? argv[1] : "11";
     int result = strcmp(mode, "12") == 0 ? probe_d3d12() : strcmp(mode, "9") == 0 ? probe_d3d9()
                : strcmp(mode, "shared") == 0 ? probe_shared()
-               : strcmp(mode, "timestamp") == 0 ? probe_timestamp() : probe_d3d11();
+               : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
+               : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
+               : strcmp(mode, "calibrate") == 0 ? probe_calibrate() : probe_d3d11();
     printf("modules:\n");
     print_module("d3d11.dll");
     print_module("d3d12.dll");

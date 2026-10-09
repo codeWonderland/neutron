@@ -117,8 +117,8 @@ to the real `*-Shipping.exe`). Godot 4 games are told to use Vulkan, which runs 
 Wine's MoltenVK, so they need no Direct3D layer. Games that ship the D3D12 Agility SDK (Unity 6, Unreal 5) get
 `d3dmetal`, falling back to `dxmt` if you haven't registered GPTK. Other engine games get
 `dxmt` (Unreal is told to use D3D11 with `-dx11`; Unity falls back to D3D11 by itself). Everything else is
-decided by the PE import tables of the `.exe` and the DLLs beside it: D3D12 → `d3dmetal`,
-D3D10/11 → `dxmt`, older APIs → `wined3d`. `neutron detect game.exe` shows the reasoning.
+decided by the PE import tables of the `.exe` and the DLLs beside it: D3D12 → `d3dmetal`
+(falling back to `dxmt` when the game imports D3D11 too), D3D10/11 → `dxmt`, older APIs → `wined3d`. `neutron detect game.exe` shows the reasoning.
 
 ## Roadmap
 

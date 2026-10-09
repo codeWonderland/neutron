@@ -5,6 +5,11 @@ final class BackendTests: XCTestCase {
     func testResolverPrefersD3D12() {
         let pick = BackendResolver.recommend(imports: ["d3d11.dll", "d3d12.dll", "dxgi.dll"])
         XCTAssertEqual(pick.backend, .d3dmetal)
+        XCTAssertEqual(pick.fallback, .dxmt)
+        // D3D12 only: nothing else can run it.
+        let only = BackendResolver.recommend(imports: ["d3d12.dll", "dxgi.dll"])
+        XCTAssertEqual(only.backend, .d3dmetal)
+        XCTAssertNil(only.fallback)
     }
 
     func testResolverMapsD3D11ToDXMT() {

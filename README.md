@@ -135,8 +135,12 @@ silently and removes its "start at login" entry (Wine would otherwise start Stea
 `wineboot` without DXMT, leaving a black window). `neutron steam` starts the client on DXMT.
 Its UI is Chromium, which renders from a separate GPU process, so it only shows up with a Wine
 built by `tools/wine-dxmt/build.sh` and a DXMT built by `tools/dxmt-patch/build.sh`. Steam
-sometimes crashes during its first self-update; run `neutron steam` again. Launching games
-from Steam's library is the next Phase 3 step.
+sometimes crashes during its first self-update; run `neutron steam` again.
+
+Once signed in and with games installed, `neutron steam games` lists them (app ID, name,
+folder; it reads `libraryfolders.vdf` and the `appmanifest_*.acf` files, including libraries on
+other drives) and `neutron steam launch <appid>` starts one through Steam. Games launched that
+way run as Steam's children, so they get Steam's backend (DXMT by default; `--backend` to change).
 
 ## How backends are applied
 

@@ -46,3 +46,12 @@ extension Launcher {
         return plan
     }
 }
+
+extension Launcher {
+    /// Starts a game through the Steam client (`Steam.exe -applaunch <appid>`), which must be signed
+    /// in. The game runs as Steam's child, so it inherits Steam's backend environment (DXMT).
+    public func steamLaunchGamePlan(prefix: Prefix, appID: String, arguments: [String] = [],
+                                    options: LaunchOptions = LaunchOptions()) throws -> LaunchPlan {
+        try steamClientPlan(prefix: prefix, arguments: ["-applaunch", appID] + arguments, options: options)
+    }
+}

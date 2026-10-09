@@ -368,8 +368,9 @@ files to see what happens before they need data (`~/neutron-games/scripts/bintra
   picked wined3d) that shows a Play menu (D3D11 / D3D12 / Vulkan) and starts
   `Bin64/BeamNG.drive.x64.exe`. Detection now follows such launchers to the game exe below
   them (`GameScan.launchedGame`), giving d3dmetal with a dxmt fallback. Across the 164 exes of
-  the 105-game library this changed only BeamNG. **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3**
-  (UE4 → DXMT `-dx11`): all still running after 40 s; none relaunch through Steam.
+  the 105-game library this changed only BeamNG. Still running after 40 s; no Steam relaunch.
+- **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3** (UE4 → DXMT `-dx11`): still
+  running after 40 s; neither relaunches through Steam.
 
 Linux-only installs on the desktop:
 Valheim, Megabonk, Barony and others.

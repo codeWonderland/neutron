@@ -28,6 +28,8 @@ public struct BackendSetup: Equatable, Sendable {
     public var dllPaths: [URL] = []
     public var environment: [String: String] = [:]
 
+    public init() {}
+
     /// `WINEDLLOVERRIDES` syntax, sorted so output is stable.
     public var overridesString: String {
         dllOverrides.sorted { $0.key < $1.key }.map { "\($0.key)=\($0.value)" }.joined(separator: ";")

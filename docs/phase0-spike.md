@@ -146,7 +146,7 @@ These only show that device creation works, not that games run.
   `steam_appid.txt` beside it: Unreal's Steam subsystem relaunches through the Steam client.
   Steam-integrated Unreal games need Phase 3 (Windows Steam in the prefix).
 - The CrossOver engine runs Wine processes from `$TMPDIR/winetemp-*`; `pkill wineserver`
-  doesn't stop them. Neutron needs a `kill` command that uses the runtime's `wineserver -k`.
+  doesn't stop them. `neutron kill` (the runtime's own `wineserver -k`) does.
 
 ### Detection scan
 

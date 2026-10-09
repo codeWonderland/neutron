@@ -75,8 +75,9 @@ neutron detect ~/Games/MyGame/MyGame.exe     # shows engine, graphics APIs and t
 neutron run ~/Games/MyGame/MyGame.exe --hud  # auto-picks a backend; --backend to override
 neutron run game.exe --dry-run               # print the env and command instead of running
 
-# Wine tools inside a prefix
+# Wine tools inside a prefix, and stopping everything in it
 neutron wine -- winecfg
+neutron kill                                  # or --all; uses the prefix's own wineserver
 ```
 
 State lives in `~/Library/Application Support/Neutron` (override with `NEUTRON_HOME`).

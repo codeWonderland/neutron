@@ -50,6 +50,15 @@ public struct Launcher: Sendable {
         try winePlan(prefix: prefix, arguments: ["wineboot", "--init"], options: LaunchOptions())
     }
 
+    /// Plan for `wineserver -k`, which ends every Wine process in the prefix. It uses the
+    /// prefix's own build and environment: some builds (e.g. CrossOver engines) run their
+    /// processes from temporary copies that `pkill wineserver` doesn't catch.
+    public func killPlan(prefix: Prefix) throws -> LaunchPlan {
+        var plan = try winePlan(prefix: prefix, arguments: ["-k"], options: LaunchOptions())
+        plan.executable = plan.executable.deletingLastPathComponent().appendingPathComponent("wineserver")
+        return plan
+    }
+
     /// Plan for running a Windows program, picking a graphics backend.
     public func gamePlan(prefix: Prefix, program: URL, arguments: [String] = [],
                          options: LaunchOptions) throws -> LaunchPlan {

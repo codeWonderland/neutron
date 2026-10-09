@@ -87,6 +87,9 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
 - `Tests/NeutronCoreTests/`: XCTest. Tests use a temp `NeutronPaths` root and fake runtimes;
   `Fixtures.makePE(imports:)` builds minimal PE files for detection tests.
 - `docs/phase0-spike.md`: hardware-spike checklist, findings and results tables.
+- `tools/smoke/`: `smoke.sh <prefix> <exe> [seconds]` launches through Neutron, captures the
+  game's own window (`winshot.swift`, needs Screen Recording permission), stops the prefix,
+  and prints PASS when the window isn't black. Use it to check games instead of guessing.
 - `tools/wine-dxmt/`: Wine patch + script that makes a DXMT-capable copy of a macOS Wine
   build by rebuilding only `winemac.so` (needs `brew install bison flex mingw-w64`).
 - `tools/d3dprobe/`: tiny D3D9/D3D11/D3D12 Windows program for checking a backend without a game

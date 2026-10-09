@@ -1,0 +1,21 @@
+diff --git a/src/d3d11/d3d11_swapchain.cpp b/src/d3d11/d3d11_swapchain.cpp
+index 5e9404d..d375675 100644
+--- a/src/d3d11/d3d11_swapchain.cpp
++++ b/src/d3d11/d3d11_swapchain.cpp
+@@ -1096,12 +1096,12 @@ CreateSwapChain(
+     return DXGI_ERROR_INVALID_CALL;
+   InitReturnPtr(ppSwapChain);
+ 
++  /* A window of another process (Chromium's GPU process) is fine when the Wine Mac driver can
++   * present into it remotely; if it can't, creating the Metal view fails below instead. */
+   DWORD window_process_id;
+   GetWindowThreadProcessId(hWnd, &window_process_id);
+-  if (GetProcessId(GetCurrentProcess()) != window_process_id) {
+-    ERR("CreateSwapChain: cross-process swapchain not supported yet");
+-    return E_FAIL;
+-  }
++  if (GetProcessId(GetCurrentProcess()) != window_process_id)
++    WARN("CreateSwapChain: window belongs to process ", window_process_id, "; presenting remotely");
+ 
+   Com<IMTLDXGIDevice> layer_factory;
+   if (FAILED(pDevice->QueryInterface(IID_PPV_ARGS(&layer_factory)))) {

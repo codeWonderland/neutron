@@ -5,6 +5,10 @@
 #                                its work, as on Windows. Unreal Engine 5 calibrates its GPU
 #                                clock that way and otherwise asserts at startup (Satisfactory:
 #                                "unset TOptional<FTimestampCalibration>").
+#   cross-process-swapchain.patch  allows swap chains on windows of other processes (Chromium's
+#                                GPU process: Steam's UI). Needs a Wine built with
+#                                tools/wine-dxmt (winemac-remote-metal.patch); with other Wines
+#                                such swap chains crash instead of failing.
 #
 #   tools/dxmt-patch/build.sh <dxmt-release-dir> <output-dir>
 #

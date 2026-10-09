@@ -81,7 +81,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [ ] Seed with Phase 0 results
 
 ### Phase 3: Steam integration
-- [ ] Cross-process presentation, the prerequisite for Steam's UI: Steam's Chromium GPU process
+- [x] Cross-process presentation, the prerequisite for Steam's UI: Steam's Chromium GPU process
       creates its D3D11 swap chain on a `Chrome_WidgetWin_1` child window owned by the browser
       process, which DXMT refuses and winemac can't show (window surfaces are per process).
       Plan, mirroring how Chrome does it natively on macOS:
@@ -91,8 +91,12 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
          the child window's view, tracking its frame, visibility and clipping.
       3. Teardown when either process goes away. Uses private Core Animation API, like Chrome.
       Upstream DXMT and Wine are the right home; prototype in `tools/` patches first.
+      *(Done with `tools/wine-dxmt/winemac-remote-metal.patch` + `tools/dxmt-patch/
+      cross-process-swapchain.patch`, reusing Wine 11's CAContext swapchain; Steam's sign-in
+      window renders. Child windows are hosted full-size in their top-level window.)*
 - [ ] `neutron steam install`: Windows Steam in a shared prefix
-      *(installs and updates; the sign-in window renders black until the item above lands)*
+      *(installs, updates and shows its sign-in window with the patched Wine + DXMT; remove its
+      `HKCU\...\Run` autostart, which `wineboot` would start without the backend's environment)*
 - [ ] Find installed games through `steamapps/appmanifest_*.acf`; launch by app ID
 - [ ] Stretch: read the native macOS Steam library and offer the Windows build of non-Mac games
 
@@ -141,6 +145,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 | 2026-10-09 | Wine runtimes can carry a GStreamer install (`--gstreamer`): Neutron sets the dylib fallback path, plugin path and a per-runtime registry under `runtimes/gstreamer/`, and `Launcher.run` refreshes that registry by running the install's `gst-inspect-1.0` natively before Wine | Media Foundation video (Unity, Unreal intros) goes through winegstreamer, which Gcenx builds link against GStreamer 1.28 by `@rpath`. Wine starts GStreamer with `--gst-disable-registry-fork`, so without a pre-built registry every plugin (Python, Vulkan with a second MoltenVK, …) loads inside the game, and on Timberborn the first scan took ~75 s; natively it takes ~2 s and the game loads only the dozen plugins it uses. Users install the official framework; Neutron doesn't bundle it |
 | 2026-10-09 | Games importing both d3d12 and d3d11 get d3dmetal with a dxmt fallback | Warframe imports both and has a D3D11 renderer; without GPTK (or on Wine 10+) auto mode errored instead of using DXMT. D3D12-only games (Elden Ring) still require D3DMetal |
 | 2026-10-09 | An exe with no graphics imports and no engine is treated as a launcher: the exe one or two folders below it (name match first, then size; tools skipped) decides the backend | BeamNG.drive's launcher imports nothing and starts `Bin64/BeamNG.drive.x64.exe` (D3D11/12), which inherited the launcher's wined3d. Only BeamNG changed across the library scan |
+| 2026-10-09 | Cross-process presentation through Wine 11's remote-layer swapchain (`winemac-remote-metal.patch`, `cross-process-swapchain.patch`) | Steam's Chromium renders from a GPU process into the browser process's window. Wine 11 already hosts a remote `CAContext` with `CALayerHost` for Vulkan; handing DXMT that swapchain through `macdrv_functions` needs no changes to DXMT's unix side (which we can't rebuild without LLVM) |
 | 2026-10-09 | Ship a DXMT patch + script (`tools/dxmt-patch`) that rebuilds only the Windows-side DLLs from the release's tag | DXMT fills timestamp queries in on its finish thread, after later event queries have signalled from the GPU; UE5's D3D11 clock calibration reads them in that window and asserts (Satisfactory). Rebuilding three PE DLLs with mingw-gcc avoids DXMT's LLVM 15 toolchain; winemetal and the unix side stay as released. Worth upstreaming |
 | 2026-10-09 | Prefixes can pin DXMT/GPTK versions (`runtimeVersions`, `prefix set-runtime`), not just Wine | Comparing DXMT v0.80 with a main build for Satisfactory meant unregistering runtimes; "newest" is decided by version label, so a build named `dxmt-main-…` never won anyway |
 | 2026-10-09 | Patch a winemac lock-order deadlock in `tools/wine-dxmt` (`winemac-flush-deadlock.patch`) | Wine 11's `macdrv_surface_flush` blocks on `win_data_mutex` under win32u's user lock while `macdrv_WindowPosChanged` takes them in the opposite order: Unreal splash + main window creation deadlocked (Deep Rock Galactic). Worth reporting upstream; until then it rides along with the DXMT patch since both rebuild only `winemac.so` |

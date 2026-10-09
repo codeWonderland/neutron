@@ -1,0 +1,216 @@
+--- a/dlls/winemac.drv/macdrv_cocoa.h
++++ b/dlls/winemac.drv/macdrv_cocoa.h
+@@ -543,6 +543,7 @@
+ extern id_WineMetalSwapChain macdrv_create_offscreen_swapchain(void* hwnd, CGRect bounds);
+ extern CAMetalLayer *macdrv_swapchain_get_layer(id_WineMetalSwapChain swapchain);
+ extern void macdrv_destroy_swapchain(id_WineMetalSwapChain swapchain);
++extern void macdrv_swapchain_set_device(id_WineMetalSwapChain swapchain, id_MTLDevice device);
+ extern void macdrv_window_create_ca_layer_host_view(WineWindow *window, unsigned int context_id);
+ extern void macdrv_window_release_ca_layer_host_view(WineWindow *window, unsigned int context_id);
+ extern void macdrv_create_remote_layer(void* hwnd, unsigned int context_id);
+--- a/dlls/winemac.drv/cocoa_window.m
++++ b/dlls/winemac.drv/cocoa_window.m
+@@ -3886,6 +3886,14 @@
+ void macdrv_destroy_swapchain(id<WineMetalSwapChain> swapchain)
+ {
+     [swapchain release];
++}
++
++void macdrv_swapchain_set_device(id<WineMetalSwapChain> swapchain, id<MTLDevice> device)
++{
++    CAMetalLayer *layer = [swapchain layer];
++    OnMainThread(^{
++        layer.device = device;
++    });
+ }
+ 
+ void macdrv_window_create_ca_layer_host_view(WineWindow *window, unsigned int context_id)
+--- a/dlls/winemac.drv/window.c
++++ b/dlls/winemac.drv/window.c
+@@ -469,6 +469,46 @@
+  *
+  * Create the whole Mac window for a given window
+  */
++/* Remote layers (CAContext IDs) another process asked this window to host before it had a
++ * Cocoa window, e.g. Chromium's GPU process presenting before Steam's window is shown.
++ * They're attached once create_cocoa_window() runs. */
++static pthread_mutex_t pending_remote_layers_mutex = PTHREAD_MUTEX_INITIALIZER;
++static struct { HWND hwnd; unsigned int context_id; } pending_remote_layers[32];
++
++static void set_pending_remote_layer(HWND hwnd, unsigned int context_id, BOOL add)
++{
++    unsigned int i;
++
++    pthread_mutex_lock(&pending_remote_layers_mutex);
++    for (i = 0; i < ARRAY_SIZE(pending_remote_layers); i++)
++    {
++        if (add && !pending_remote_layers[i].hwnd)
++        {
++            pending_remote_layers[i].hwnd = hwnd;
++            pending_remote_layers[i].context_id = context_id;
++            break;
++        }
++        if (!add && pending_remote_layers[i].hwnd == hwnd && pending_remote_layers[i].context_id == context_id)
++            pending_remote_layers[i].hwnd = 0;
++    }
++    pthread_mutex_unlock(&pending_remote_layers_mutex);
++}
++
++static void attach_pending_remote_layers(struct macdrv_win_data *data)
++{
++    unsigned int i;
++
++    pthread_mutex_lock(&pending_remote_layers_mutex);
++    for (i = 0; i < ARRAY_SIZE(pending_remote_layers); i++)
++    {
++        if (pending_remote_layers[i].hwnd != data->hwnd) continue;
++        TRACE("hwnd %p: attaching pending remote layer %u\n", data->hwnd, pending_remote_layers[i].context_id);
++        macdrv_window_create_ca_layer_host_view(data->cocoa_window, pending_remote_layers[i].context_id);
++        pending_remote_layers[i].hwnd = 0;
++    }
++    pthread_mutex_unlock(&pending_remote_layers_mutex);
++}
++
+ static void create_cocoa_window(struct macdrv_win_data *data)
+ {
+     struct macdrv_thread_data *thread_data = macdrv_init_thread_data();
+@@ -504,6 +544,7 @@
+ 
+     data->cocoa_window = macdrv_create_cocoa_window(&wf, frame, data->hwnd, thread_data->queue);
+     if (!data->cocoa_window) goto done;
++    attach_pending_remote_layers(data);
+ 
+     set_cocoa_window_properties(data);
+ 
+@@ -1580,16 +1621,20 @@
+         {
+             TRACE("WM_MACDRV_CREATE_REMOTE_LAYER context_id %u\n", (unsigned int)lp);
+             if (data->cocoa_window) macdrv_window_create_ca_layer_host_view(data->cocoa_window, (unsigned int)lp);
++            else set_pending_remote_layer(hwnd, (unsigned int)lp, TRUE);
+             release_win_data(data);
+         }
++        else set_pending_remote_layer(hwnd, (unsigned int)lp, TRUE);
+         return 0;
+     case WM_MACDRV_RELEASE_REMOTE_LAYER:
+         if ((data = get_win_data(hwnd)))
+         {
+             TRACE("WM_MACDRV_RELEASE_REMOTE_LAYER context_id %u\n", (unsigned int)lp);
++            set_pending_remote_layer(hwnd, (unsigned int)lp, FALSE);
+             if (data->cocoa_window) macdrv_window_release_ca_layer_host_view(data->cocoa_window, (unsigned int)lp);
+             release_win_data(data);
+         }
++        else set_pending_remote_layer(hwnd, (unsigned int)lp, FALSE);
+         return 0;
+     }
+ 
+@@ -2253,13 +2298,64 @@
+     WineContentView         *client_cocoa_view;
+     struct macdrv_win_data  *data;
+ };
++
++/* A window of another process (Chromium's GPU process presents into the browser's window):
++ * render into a CAContext that the window's owner hosts with CALayerHost, as winemac does for
++ * Vulkan. Upstream only does that for top-level windows; a child window is hosted in its
++ * top-level window, which is exact when the child fills it (Steam's sign-in window). The
++ * swapchain stands in for the view, and the functions below recognize it. */
++static pthread_mutex_t remote_swapchains_mutex = PTHREAD_MUTEX_INITIALIZER;
++static CFMutableSetRef remote_swapchains;
++
++static BOOL is_remote_swapchain(const void *ptr)
++{
++    BOOL ret;
++
++    pthread_mutex_lock(&remote_swapchains_mutex);
++    ret = ptr && remote_swapchains && CFSetContainsValue(remote_swapchains, ptr);
++    pthread_mutex_unlock(&remote_swapchains_mutex);
++    return ret;
++}
++
++static id_WineMetalSwapChain create_remote_swapchain(HWND hwnd)
++{
++    HWND root = NtUserGetAncestor(hwnd, GA_ROOT);
++    id_WineMetalSwapChain swapchain;
++    RECT rect;
+ 
++    if (!root || !NtUserGetClientRect(hwnd, &rect, NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI))) return NULL;
++    if (!(swapchain = macdrv_create_offscreen_swapchain(root, cgrect_from_rect(rect)))) return NULL;
++    TRACE("hwnd %p (root %p) %s: remote swapchain %p\n", hwnd, root, wine_dbgstr_rect(&rect), swapchain);
++
++    pthread_mutex_lock(&remote_swapchains_mutex);
++    if (!remote_swapchains) remote_swapchains = CFSetCreateMutable(NULL, 0, NULL);
++    CFSetAddValue(remote_swapchains, swapchain);
++    pthread_mutex_unlock(&remote_swapchains_mutex);
++    return swapchain;
++}
++
+ static struct external_win_data *external_get_win_data(HWND hwnd)
+ {
+     struct macdrv_win_data *data;
+     struct external_win_data *ret;
+ 
+-    if (!(data = get_win_data(hwnd))) return NULL;
++    if (!(data = get_win_data(hwnd)))
++    {
++        id_WineMetalSwapChain swapchain;
++        DWORD pid = 0;
++
++        NtUserGetWindowThread(hwnd, &pid);
++        if (!pid || pid == GetCurrentProcessId()) return NULL;
++        if (!(swapchain = create_remote_swapchain(hwnd))) return NULL;
++        if (!(ret = calloc(1, sizeof(*ret))))
++        {
++            macdrv_destroy_swapchain(swapchain);
++            return NULL;
++        }
++        ret->hwnd = hwnd;
++        ret->client_cocoa_view = (WineContentView *)swapchain;
++        return ret;
++    }
+     if (!data->cocoa_window || !(ret = malloc(sizeof(*ret))))
+     {
+         release_win_data(data);
+@@ -2273,6 +2369,32 @@
+     return ret;
+ }
+ 
++static WineMetalView *external_create_metal_view(WineContentView *view, id_MTLDevice device)
++{
++    if (!is_remote_swapchain(view)) return macdrv_view_create_new_metal_view(view, device);
++    macdrv_swapchain_set_device((id_WineMetalSwapChain)view, device);
++    return (WineMetalView *)view;
++}
++
++static CAMetalLayer *external_get_metal_layer(WineMetalView *view)
++{
++    if (!is_remote_swapchain(view)) return macdrv_view_get_metal_layer(view);
++    return macdrv_swapchain_get_layer((id_WineMetalSwapChain)view);
++}
++
++static void external_release_metal_view(WineMetalView *view)
++{
++    if (!is_remote_swapchain(view))
++    {
++        macdrv_view_release_metal_view(view);
++        return;
++    }
++    pthread_mutex_lock(&remote_swapchains_mutex);
++    CFSetRemoveValue(remote_swapchains, view);
++    pthread_mutex_unlock(&remote_swapchains_mutex);
++    macdrv_destroy_swapchain((id_WineMetalSwapChain)view);
++}
++
+ static void external_release_win_data(struct external_win_data *external)
+ {
+     if (!external) return;
+@@ -2302,8 +2424,8 @@
+     macdrv_get_cocoa_window,
+     macdrv_create_metal_device,
+     macdrv_release_metal_device,
+-    macdrv_view_create_new_metal_view,
+-    macdrv_view_get_metal_layer,
+-    macdrv_view_release_metal_view,
++    external_create_metal_view,
++    external_get_metal_layer,
++    external_release_metal_view,
+     macdrv_on_main_thread,
+ };

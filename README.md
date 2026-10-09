@@ -31,7 +31,7 @@ with `neutron runtime add`:
 | Rosetta 2 | `softwareupdate --install-rosetta` | Runs Wine's x86_64 code |
 | Wine | [Gcenx's macOS Wine builds](https://github.com/Gcenx/macOS_Wine_builds/releases) (`wine-devel-*-osx64.tar.xz`) | Works as-is for wined3d. **For DXMT, patch it** with `tools/wine-dxmt/build.sh` (below) |
 | DXMT | [3Shain/dxmt releases](https://github.com/3Shain/dxmt/releases) (`dxmt-*-builtin.tar.gz`) | D3D10/11 → Metal. Point `runtime add` at the extracted folder |
-| DXMT patch (optional) | `tools/dxmt-patch/build.sh` (below) | Rebuilds DXMT's D3D11 DLLs with a timestamp-query fix that Unreal Engine 5 games need on D3D11 (Satisfactory) |
+| DXMT patch (optional) | `tools/dxmt-patch/build.sh` (below) | Rebuilds DXMT's D3D11 DLLs with a timestamp-query fix that Unreal Engine 5 games need on D3D11 (Satisfactory) and cross-process swap chains (Steam's UI; needs the patched Wine) |
 | GStreamer | [gstreamer.freedesktop.org](https://gstreamer.freedesktop.org/download/#macos) (the macOS **runtime** installer, `gstreamer-1.0-*-universal.pkg`) | Optional; plays in-game videos (intros, cutscenes). Installs `/Library/Frameworks/GStreamer.framework`; pass it to `runtime add wine --gstreamer` |
 | Game Porting Toolkit (D3DMetal) | [Apple Developer](https://developer.apple.com/games/game-porting-toolkit/) (free Apple ID) | Optional; for D3D12 games (Unreal 5). Never redistributed by Neutron. Only runs on a CrossOver-based Wine 9 or older (see below) |
 
@@ -42,7 +42,8 @@ keep private. Without them a game starts but every frame fails with *"Failed to 
 view, it seems like your Wine has no exported symbols needed by DXMT"*.
 `tools/wine-dxmt/build.sh` makes a patched copy of a Gcenx build. It rebuilds only
 `winemac.so` (with `winemac-dxmt.patch`, plus `winemac-flush-deadlock.patch`, which fixes a
-Wine 11 hang where Unreal games stay on their splash screen) and `mfreadwrite.dll` (with
+Wine 11 hang where Unreal games stay on their splash screen, and `winemac-remote-metal.patch`,
+which lets DXMT present into another process's window, e.g. Steam's UI) and `mfreadwrite.dll` (with
 `mfreadwrite-shared-samples.patch`, so Unity games' videos play under DXMT) from the
 matching Wine source, which takes a few minutes the first time:
 

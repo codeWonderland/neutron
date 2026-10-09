@@ -9,6 +9,10 @@
 #                                    while another thread flushes a layered window (Unreal
 #                                    splash screens: Deep Rock Galactic hung on its splash).
 #
+#   winemac-remote-metal.patch       DXMT can present into another process's window (Chromium's
+#                                    GPU process: Steam's UI) through winemac's remote-layer
+#                                    swapchain. Pairs with tools/dxmt-patch/cross-process-swapchain.
+#
 #   tools/wine-dxmt/build.sh <wine-root> <output-dir>
 #
 # <wine-root> is a Wine build containing bin/wine, e.g. Gcenx's

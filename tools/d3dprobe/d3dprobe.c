@@ -4,6 +4,8 @@
 //   d3dprobe.exe        D3D11 device + adapter info
 //   d3dprobe.exe 12     D3D12 device
 //   d3dprobe.exe 9      D3D9 device (HAL, hidden window) + adapter info
+//   d3dprobe.exe shared D3D11 shared texture: GetSharedHandle on one device, open on another
+//                       (what Media Foundation video playback in Unity relies on)
 //
 // Exit code 0 means the device was created.
 #define COBJMACROS
@@ -106,9 +108,47 @@ static int probe_d3d9(void) {
     return SUCCEEDED(hr) ? 0 : 1;
 }
 
+static ID3D11Device *create_device(void) {
+    ID3D11Device *device = NULL;
+    D3D11CreateDevice(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, D3D11_CREATE_DEVICE_BGRA_SUPPORT, NULL, 0,
+                      D3D11_SDK_VERSION, &device, NULL, NULL);
+    return device;
+}
+
+static int probe_shared(void) {
+    ID3D11Device *a = create_device(), *b = create_device();
+    if (!a || !b) { printf("D3D11CreateDevice failed\n"); return 1; }
+    int failures = 0;
+    UINT flags[] = {D3D11_RESOURCE_MISC_SHARED, D3D11_RESOURCE_MISC_SHARED_KEYEDMUTEX, 0};
+    const char *names[] = {"MISC_SHARED", "MISC_SHARED_KEYEDMUTEX", "no shared flag"};
+    for (int i = 0; i < 3; i++) {
+        D3D11_TEXTURE2D_DESC desc = {256, 256, 1, 1, DXGI_FORMAT_B8G8R8A8_UNORM, {1, 0}, D3D11_USAGE_DEFAULT,
+                                     D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET, 0, flags[i]};
+        ID3D11Texture2D *texture = NULL;
+        HRESULT hr = ID3D11Device_CreateTexture2D(a, &desc, NULL, &texture);
+        if (FAILED(hr)) { printf("%-24s CreateTexture2D failed: 0x%08lx\n", names[i], (unsigned long)hr); failures++; continue; }
+        IDXGIResource *resource = NULL;
+        HANDLE handle = NULL;
+        ID3D11Texture2D_QueryInterface(texture, &IID_IDXGIResource, (void **)&resource);
+        hr = resource ? IDXGIResource_GetSharedHandle(resource, &handle) : E_NOINTERFACE;
+        ID3D11Texture2D *opened = NULL;
+        HRESULT open = handle ? ID3D11Device_OpenSharedResource(b, handle, &IID_ID3D11Texture2D, (void **)&opened) : E_HANDLE;
+        printf("%-24s GetSharedHandle 0x%08lx handle %p, OpenSharedResource 0x%08lx\n", names[i],
+               (unsigned long)hr, handle, (unsigned long)open);
+        if (flags[i] && (FAILED(hr) || !handle || FAILED(open))) failures++;
+        if (opened) ID3D11Texture2D_Release(opened);
+        if (resource) IDXGIResource_Release(resource);
+        ID3D11Texture2D_Release(texture);
+    }
+    ID3D11Device_Release(a);
+    ID3D11Device_Release(b);
+    return failures ? 1 : 0;
+}
+
 int main(int argc, char **argv) {
     const char *mode = argc > 1 ? argv[1] : "11";
-    int result = strcmp(mode, "12") == 0 ? probe_d3d12() : strcmp(mode, "9") == 0 ? probe_d3d9() : probe_d3d11();
+    int result = strcmp(mode, "12") == 0 ? probe_d3d12() : strcmp(mode, "9") == 0 ? probe_d3d9()
+               : strcmp(mode, "shared") == 0 ? probe_shared() : probe_d3d11();
     printf("modules:\n");
     print_module("d3d11.dll");
     print_module("d3d12.dll");

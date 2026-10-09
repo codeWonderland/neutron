@@ -1,0 +1,15 @@
+diff --git a/dlls/mfreadwrite/reader.c b/dlls/mfreadwrite/reader.c
+index a8a065d..6751aca 100644
+--- a/dlls/mfreadwrite/reader.c
++++ b/dlls/mfreadwrite/reader.c
+@@ -2004,6 +2004,10 @@ static HRESULT source_reader_create_sample_allocator_attributes(const struct sou
+         hr = IMFAttributes_SetUINT32(*attributes, &MF_SA_D3D11_SHARED_WITHOUT_MUTEX, TRUE);
+     else if (shared)
+         hr = IMFAttributes_SetUINT32(*attributes, &MF_SA_D3D11_SHARED, TRUE);
++    else
++        /* Native output samples can be shared even when the application didn't ask: Unity
++         * calls IDXGIResource::GetSharedHandle() on them and stalls on a NULL handle. */
++        hr = IMFAttributes_SetUINT32(*attributes, &MF_SA_D3D11_SHARED_WITHOUT_MUTEX, TRUE);
+ 
+     return hr;
+ }

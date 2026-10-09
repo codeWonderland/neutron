@@ -69,7 +69,8 @@ every push and PR. There is no linter configured.
    `WINEDEBUG=-all`, `WINEMSYNC=1`, `MVK_CONFIG_LOG_LEVEL=1`, plus
    `DYLD_FALLBACK_LIBRARY_PATH` from the Wine runtime's `libraryPaths`) → backend env → prefix
    `environment` overrides everything, except `WINEDLLOVERRIDES`, which is appended after
-   the backend's.
+   the backend's. A Wine runtime's `libraryPaths` and `gstreamer` (for Media Foundation
+   video) become `DYLD_FALLBACK_LIBRARY_PATH` and `GST_*` variables.
 
 State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `NEUTRON_HOME`):
 `prefixes/<name>/neutron.json` (config) + `prefixes/<name>/pfx/` (the actual `WINEPREFIX`),

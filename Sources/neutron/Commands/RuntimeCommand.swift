@@ -33,9 +33,13 @@ struct RuntimeCommand: ParsableCommand {
         @Option(name: .customLong("library-path"), help: "Folder of dylibs the Wine build needs from its host app (repeatable).")
         var libraryPaths: [String] = []
 
+        @Option(help: "GStreamer install for in-game video (e.g. /Library/Frameworks/GStreamer.framework).")
+        var gstreamer: String?
+
         func run() throws {
             let runtime = try Env.runtimes.add(kind: kind, path: URL(fileURLWithPath: path), version: version,
-                                               libraryPaths: libraryPaths.map { URL(fileURLWithPath: $0) })
+                                               libraryPaths: libraryPaths.map { URL(fileURLWithPath: $0) },
+                                               gstreamer: gstreamer.map { URL(fileURLWithPath: $0) })
             print("Registered \(kind.rawValue) \(runtime.version) at \(runtime.path.path)")
         }
     }
@@ -47,7 +51,8 @@ struct RuntimeCommand: ParsableCommand {
             let runtimes = try Env.runtimes.list()
             if runtimes.isEmpty { return print("No runtimes. Add one with `neutron runtime add wine <path>`.") }
             for runtime in runtimes.sorted(by: { ($0.kind.rawValue, $0.version) < ($1.kind.rawValue, $1.version) }) {
-                print("\(runtime.kind.rawValue)  \(runtime.version)  \(runtime.path.path)")
+                print("\(runtime.kind.rawValue)  \(runtime.version)  \(runtime.path.path)"
+                      + (runtime.gstreamer.map { "  (GStreamer: \($0.path))" } ?? ""))
             }
         }
     }

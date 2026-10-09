@@ -142,7 +142,24 @@ public struct Launcher: Sendable {
             "MVK_CONFIG_LOG_LEVEL": "1",
         ]
         if options.hud { env["MTL_HUD_ENABLED"] = "1" }
-        if let libraries = wine.libraryPaths, !libraries.isEmpty {
+        var libraries = wine.libraryPaths ?? []
+        if let gstreamer = wine.gstreamer {
+            // winegstreamer.so links @rpath/libgst*.dylib and finds them on the fallback path.
+            // The plugin registry is cached per Wine runtime under Neutron's state. GStreamer
+            // builds it by loading every plugin, so do that in its scanner process when the
+            // install has one: in the game's process, plugins like vulkan bring a second
+            // MoltenVK alongside Wine's.
+            libraries.append(gstreamer.appendingPathComponent("lib"))
+            env["GST_PLUGIN_SYSTEM_PATH_1_0"] = gstreamer.appendingPathComponent("lib/gstreamer-1.0").path
+            env["GST_REGISTRY_1_0"] = runtimes.paths.gstreamerRegistry(wineVersion: wine.version).path
+            let scanner = gstreamer.appendingPathComponent("libexec/gstreamer-1.0/gst-plugin-scanner")
+            if FileManager.default.isExecutableFile(atPath: scanner.path) {
+                env["GST_PLUGIN_SCANNER_1_0"] = scanner.path
+            } else {
+                env["GST_REGISTRY_FORK"] = "no"
+            }
+        }
+        if !libraries.isEmpty {
             env["DYLD_FALLBACK_LIBRARY_PATH"] = libraries.map(\.path).joined(separator: ":")
         }
         env.merge(setup.environment) { _, new in new }

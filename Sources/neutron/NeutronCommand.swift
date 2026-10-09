@@ -53,6 +53,7 @@ func printPlan(_ plan: LaunchPlan) {
     for (key, value) in plan.environment.sorted(by: { $0.key < $1.key }) {
         print("\(key)=\(value)")
     }
+    if let scan = plan.gstreamerScan { print("\(scan.path) --version   # updates the GStreamer plugin registry") }
     if let directory = plan.workingDirectory { print("cd \(directory.path)") }
     print(([plan.executable.path] + plan.arguments).joined(separator: " "))
 }

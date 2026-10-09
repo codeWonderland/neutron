@@ -94,8 +94,9 @@ bug reports.
 Games that play video through Media Foundation (most Unity and many Unreal games) need
 Wine's GStreamer bridge, which needs GStreamer itself. Install the official runtime package
 and register your Wine with `--gstreamer /Library/Frameworks/GStreamer.framework`; Neutron
-then points Wine at its libraries and plugins and caches the plugin list under
-`runtimes/gstreamer/`. Without it those games show a black screen or skip the video, and
+then points Wine at its libraries and plugins, and refreshes GStreamer's plugin list under
+`runtimes/gstreamer/` with the framework's `gst-inspect-1.0` before each launch (a couple of
+seconds the first time; inside Wine it would take over a minute). Without it those games show a black screen or skip the video, and
 `neutron doctor` warns about it. To add it to a Wine you've already registered, remove and
 re-add it (`neutron runtime remove wine <version>`; prefixes keep their pin by version).
 

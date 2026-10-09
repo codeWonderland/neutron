@@ -135,8 +135,8 @@ final class StoreTests: XCTestCase {
             .environment["DYLD_FALLBACK_LIBRARY_PATH"], "/x")
     }
 
-    /// `--gstreamer` takes the official framework; the plan finds its libraries and plugins and
-    /// keeps the plugin registry under Neutron's state.
+    /// `--gstreamer` takes the official framework; the plan finds its libraries and plugins,
+    /// keeps the plugin registry under Neutron's state and pre-scans it with gst-inspect.
     func testGStreamerEnvironment() throws {
         let framework = paths.root.appendingPathComponent("Frameworks/GStreamer.framework")
         let version = framework.appendingPathComponent("Versions/1.0")
@@ -160,16 +160,16 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(env["DYLD_FALLBACK_LIBRARY_PATH"], "\(frameworks.path):\(root.path)/lib")
         XCTAssertEqual(env["GST_PLUGIN_SYSTEM_PATH_1_0"], "\(root.path)/lib/gstreamer-1.0")
         XCTAssertEqual(env["GST_REGISTRY_1_0"], paths.runtimes.appendingPathComponent("gstreamer/11.18.bin").path)
-        // No scanner in this install, so plugins are scanned in-process.
-        XCTAssertEqual(env["GST_REGISTRY_FORK"], "no")
-        XCTAssertNil(env["GST_PLUGIN_SCANNER_1_0"])
+        XCTAssertNil(env["GST_REGISTRY_FORK"])
+        XCTAssertNil(try Launcher(runtimes: runtimes).winePlan(prefix: prefix, arguments: [], options: LaunchOptions()).gstreamerScan)
 
-        let scanner = root.appendingPathComponent("libexec/gstreamer-1.0/gst-plugin-scanner")
-        try touch(scanner)
-        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scanner.path)
-        let scanned = try Launcher(runtimes: runtimes).winePlan(prefix: prefix, arguments: [], options: LaunchOptions()).environment
-        XCTAssertEqual(scanned["GST_PLUGIN_SCANNER_1_0"], scanner.path)
-        XCTAssertNil(scanned["GST_REGISTRY_FORK"])
+        // With gst-inspect in the install, it pre-scans plugins natively (not for `kill`).
+        let inspect = root.appendingPathComponent("bin/gst-inspect-1.0")
+        try touch(inspect)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: inspect.path)
+        let launcher = Launcher(runtimes: runtimes)
+        XCTAssertEqual(try launcher.winePlan(prefix: prefix, arguments: [], options: LaunchOptions()).gstreamerScan, inspect)
+        XCTAssertNil(try launcher.killPlan(prefix: prefix).gstreamerScan)
     }
 
     /// Release archives extract into a wrapper folder; `runtime add` should look inside it.

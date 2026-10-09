@@ -175,8 +175,13 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   so stock winegstreamer is enough. With the official GStreamer 1.28.2 runtime
   (`runtime add wine --gstreamer`), the intro video plays on patched Wine 11.18 + DXMT and the
   menu takes mouse input once the window is active (the user's earlier "can't click" was a
-  window that never got focus; raw input showed no events until it did). The user reports Exit
-  Game seems to freeze before the process ends; under investigation.
+  window that never got focus; raw input showed no events until it did). Exit Game quits
+  cleanly (game gone, wineserver 5 s later); an earlier "freeze on exit" was on a build with
+  an extra decoder patch and every GStreamer plugin loaded in-process. Wine starts GStreamer
+  with `--gst-disable-registry-fork`, so Neutron pre-builds the plugin registry natively:
+  launch to video went from ~90 s to 17 s. `applemedia` (VideoToolbox H.264) still links
+  GStreamer's own MoltenVK, so the process holds two copies (objc duplicate-class warning);
+  no harm seen with DXMT, but Vulkan games that play video should be checked.
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
   The Windows build can't be judged from it.

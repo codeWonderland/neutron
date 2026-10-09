@@ -201,6 +201,12 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   game needs the Steam client. (A debugger attach also unsticks the hang, which is why one
   run "recovered" while being inspected.) The smoke test now reports a window smaller than
   640×360 as SPLASH instead of PASS.
+- **Regression sweep** (2026-10-09, `tools/wine-dxmt` output with all three patches + DXMT
+  v0.80 + GStreamer 1.28.2, `~/neutron-games/scripts/sweep.sh`, 60 s each): PASS for
+  A Game About Digging A Hole, Berry Bounce, Cosmos Kitten, Dark Deity, Deep Rock Galactic,
+  Desktop Defender, Fortune Mill, Loop Tower, Snake Farm, Timberborn, You Know The Drill;
+  unchanged known failures: Idle Colony (GL 3.3 compatibility profile) and the ghost-vacuum
+  demo (mostly black scene, same on DXVK).
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
   The Windows build can't be judged from it.

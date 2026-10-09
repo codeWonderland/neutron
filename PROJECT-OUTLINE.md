@@ -81,8 +81,18 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 - [ ] Seed with Phase 0 results
 
 ### Phase 3: Steam integration
+- [ ] Cross-process presentation, the prerequisite for Steam's UI: Steam's Chromium GPU process
+      creates its D3D11 swap chain on a `Chrome_WidgetWin_1` child window owned by the browser
+      process, which DXMT refuses and winemac can't show (window surfaces are per process).
+      Plan, mirroring how Chrome does it natively on macOS:
+      1. DXMT (renderer side): when the window belongs to another process, create the
+         `CAMetalLayer` in a `CAContext` (remote layer) and send its context ID to the window.
+      2. winemac (owner side): a driver message that hosts the context with a `CALayerHost` in
+         the child window's view, tracking its frame, visibility and clipping.
+      3. Teardown when either process goes away. Uses private Core Animation API, like Chrome.
+      Upstream DXMT and Wine are the right home; prototype in `tools/` patches first.
 - [ ] `neutron steam install`: Windows Steam in a shared prefix
-      *(installs and updates; the sign-in window renders black, see spike doc)*
+      *(installs and updates; the sign-in window renders black until the item above lands)*
 - [ ] Find installed games through `steamapps/appmanifest_*.acf`; launch by app ID
 - [ ] Stretch: read the native macOS Steam library and offer the Windows build of non-Mac games
 

@@ -156,7 +156,9 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
 **Root cause (rechecked 2026-10-09 on Wine 11.18 with all `tools/wine-dxmt` patches and the
 patched DXMT):** Steam's Chromium always runs a separate GPU process that renders into a
 window owned by the browser process. DXMT logs `CreateSwapChain: cross-process swapchain not
-supported yet` (also on DXMT main), ANGLE's `SwapChain11::reset` then fails with E_FAIL →
+supported yet` (also on DXMT main; a diagnostic build shows the target is hwnd class
+`Chrome_WidgetWin_1`, style `WS_CHILD|WS_VISIBLE|…`, owned by the browser process, inside its
+`CefBrowserWindow`), ANGLE's `SwapChain11::reset` then fails with E_FAIL →
 `EGL_BAD_ALLOC`, and the window stays empty. Things that don't get around it: Steam's
 `-cef-disable-d3d11`, `-cef-in-process-gpu` and `-cef-single-process` aren't passed to Chromium;
 injecting `--in-process-gpu` or `--single-process` into `steamwebhelper.exe` with a wrapper

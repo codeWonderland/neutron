@@ -11,6 +11,8 @@
 //   d3dprobe.exe calibrate  Unreal Engine 5's D3D11 timestamp calibration, step by step: once an
 //                       event query issued after them has signalled, the timestamp and disjoint
 //                       queries must already have results (Windows completes queries in order)
+//   d3dprobe.exe crossproc  creates a window, then a second d3dprobe process presents red into it
+//                       through a D3D11 swap chain (what Chromium's GPU process does; Steam)
 //   d3dprobe.exe queryorder  polls timestamp and disjoint queries without waiting, frame by frame,
 //                       and counts timestamps that were ready before their disjoint query
 //
@@ -305,13 +307,86 @@ static int probe_calibrate(void) {
     return ok ? 0 : 1;
 }
 
+static LRESULT CALLBACK crossproc_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp) {
+    return DefWindowProcA(hwnd, msg, wp, lp);
+}
+
+/* Child: present red into another process's window for a few seconds. */
+static int crossproc_child(HWND hwnd) {
+    DXGI_SWAP_CHAIN_DESC desc = {0};
+    desc.BufferDesc.Width = 0; desc.BufferDesc.Height = 0;
+    desc.BufferDesc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    desc.BufferCount = 2;
+    desc.OutputWindow = hwnd;
+    desc.Windowed = TRUE;
+    desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    IDXGISwapChain *swapchain = NULL;
+    ID3D11Device *device = NULL;
+    ID3D11DeviceContext *context = NULL;
+    HRESULT hr = D3D11CreateDeviceAndSwapChain(NULL, D3D_DRIVER_TYPE_HARDWARE, NULL, 0, NULL, 0, D3D11_SDK_VERSION,
+                                               &desc, &swapchain, &device, NULL, &context);
+    printf("child: D3D11CreateDeviceAndSwapChain on hwnd %p: 0x%08lx\n", hwnd, (unsigned long)hr);
+    if (FAILED(hr)) return 1;
+    ID3D11Texture2D *back = NULL;
+    ID3D11RenderTargetView *rtv = NULL;
+    IDXGISwapChain_GetBuffer(swapchain, 0, &IID_ID3D11Texture2D, (void **)&back);
+    ID3D11Device_CreateRenderTargetView(device, (ID3D11Resource *)back, NULL, &rtv);
+    float red[4] = {1, 0, 0, 1};
+    for (int i = 0; i < 300; i++) {
+        ID3D11DeviceContext_ClearRenderTargetView(context, rtv, red);
+        IDXGISwapChain_Present(swapchain, 1, 0);
+        Sleep(16);
+    }
+    return 0;
+}
+
+/* Parent: own a window (with a child window, as Chromium does), run the child against the child
+ * window, and keep pumping messages meanwhile. */
+static int probe_crossproc(void) {
+    WNDCLASSA wc = {0};
+    wc.lpfnWndProc = crossproc_wndproc;
+    wc.hInstance = GetModuleHandleA(NULL);
+    wc.lpszClassName = "d3dprobe_crossproc";
+    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    RegisterClassA(&wc);
+    HWND top = CreateWindowA("d3dprobe_crossproc", "d3dprobe crossproc", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+                             100, 100, 640, 400, NULL, NULL, wc.hInstance, NULL);
+    RECT rc;
+    GetClientRect(top, &rc);
+    HWND child = CreateWindowA("d3dprobe_crossproc", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+                               0, 0, rc.right, rc.bottom, top, NULL, wc.hInstance, NULL);
+    char exe[MAX_PATH], cmd[MAX_PATH + 64];
+    GetModuleFileNameA(NULL, exe, MAX_PATH);
+    snprintf(cmd, sizeof(cmd), "\"%s\" crossproc-child %p", exe, (void *)child);
+    STARTUPINFOA si = {sizeof(si)};
+    PROCESS_INFORMATION pi;
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) { printf("CreateProcess failed\n"); return 1; }
+    for (;;) {
+        MSG msg;
+        while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) { TranslateMessage(&msg); DispatchMessageA(&msg); }
+        if (WaitForSingleObject(pi.hProcess, 10) == WAIT_OBJECT_0) break;
+    }
+    DWORD code = 1;
+    GetExitCodeProcess(pi.hProcess, &code);
+    printf("child exited with %lu\n", code);
+    return (int)code;
+}
+
 int main(int argc, char **argv) {
     const char *mode = argc > 1 ? argv[1] : "11";
+    if (strcmp(mode, "crossproc-child") == 0 && argc > 2) {
+        void *hwnd = NULL;
+        sscanf(argv[2], "%p", &hwnd);
+        return crossproc_child((HWND)hwnd);
+    }
     int result = strcmp(mode, "12") == 0 ? probe_d3d12() : strcmp(mode, "9") == 0 ? probe_d3d9()
                : strcmp(mode, "shared") == 0 ? probe_shared()
                : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
                : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
-               : strcmp(mode, "calibrate") == 0 ? probe_calibrate() : probe_d3d11();
+               : strcmp(mode, "calibrate") == 0 ? probe_calibrate()
+               : strcmp(mode, "crossproc") == 0 ? probe_crossproc() : probe_d3d11();
     printf("modules:\n");
     print_module("d3d11.dll");
     print_module("d3d12.dll");

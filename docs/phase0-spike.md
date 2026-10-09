@@ -165,7 +165,24 @@ injecting `--in-process-gpu` or `--single-process` into `steamwebhelper.exe` wit
 reaches the process but this CEF build still spawns its GPU process. wined3d's black window is
 plausibly the same cross-process problem in winemac (window surfaces are per process).
 Running Steam needs cross-process presentation: winemac hosting another process's Metal layer
-(e.g. `CALayerHost`/remote layers) plus DXMT support. That's the Phase 3 blocker.
+(e.g. `CALayerHost`/remote layers) plus DXMT support.
+
+**Fixed (2026-10-09): Steam's sign-in window renders.** Wine 11 already has the pieces for
+Vulkan: `CAContextSwapChain` renders into a `CAContext`, and `WM_MACDRV_CREATE_REMOTE_LAYER`
+makes the window's owner host it with `CALayerHost` (top-level windows only; child windows
+hit a FIXME). Two patches wire DXMT to it:
+- `tools/wine-dxmt/winemac-remote-metal.patch`: for a window of another process, the
+  `macdrv_functions` table hands DXMT one of those swapchains in place of a view (a child
+  window is hosted in its top-level window, exact when it fills it, as Steam's does). It
+  also keeps hosting requests that arrive before the owner's Cocoa window exists.
+- `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
+`d3dprobe crossproc` (one process owns a window with a child window, a second presents red
+into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,
+DXMT v0.80 built by `tools/dxmt-patch`): "Sign in to Steam" renders the login form and QR
+code at 30, 60 and 90 s, on every launch through Neutron. Gotcha: Steam adds itself to
+`HKCU\...\Run` (`steam.exe -silent`), so `wineboot` starts a Steam without the backend's
+environment, whose window stays black and which a later launch just hands off to.
+Regression sweep of the 13 local games on this Wine + DXMT pair: unchanged (11 PASS).
 
 ### Diagnoses (2026-10-09)
 

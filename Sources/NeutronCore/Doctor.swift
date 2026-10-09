@@ -102,11 +102,11 @@ public enum Doctor {
             if let gstreamer = runtime.gstreamer {
                 if (try? Runtime.resolveGStreamer(at: gstreamer)) == nil {
                     checks.append(Check(.failure, "\(name): GStreamer at \(gstreamer.path) is missing",
-                                        fix: "Reinstall it, or re-add the runtime with the right --gstreamer."))
+                                        fix: "Reinstall it, or run `neutron runtime set-gstreamer \(runtime.version) <path>` (or `none`)."))
                 }
             } else if gstreamerLinked {
                 checks.append(Check(.warning, "\(name): no GStreamer, so in-game videos won't play",
-                                    fix: "Install the GStreamer runtime package (README \"What you need\"), then re-add this runtime with --gstreamer /Library/Frameworks/GStreamer.framework."))
+                                    fix: "Install the GStreamer runtime package (README \"What you need\"), then `neutron runtime set-gstreamer \(runtime.version) /Library/Frameworks/GStreamer.framework`."))
             }
             let caps = capabilities(runtime)
             dxmtCapableWine = dxmtCapableWine || caps.supports(.dxmt)

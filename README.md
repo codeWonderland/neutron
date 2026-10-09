@@ -97,8 +97,8 @@ and register your Wine with `--gstreamer /Library/Frameworks/GStreamer.framework
 then points Wine at its libraries and plugins, and refreshes GStreamer's plugin list under
 `runtimes/gstreamer/` with the framework's `gst-inspect-1.0` before each launch (a couple of
 seconds the first time; inside Wine it would take over a minute). Without it those games show a black screen or skip the video, and
-`neutron doctor` warns about it. To add it to a Wine you've already registered, remove and
-re-add it (`neutron runtime remove wine <version>`; prefixes keep their pin by version).
+`neutron doctor` warns about it. To add it to a Wine you've already registered, run
+`neutron runtime set-gstreamer <version> /Library/Frameworks/GStreamer.framework`.
 
 Steam games usually need a `steam_appid.txt` containing the game's app ID next to the
 `.exe` when Steam isn't running.

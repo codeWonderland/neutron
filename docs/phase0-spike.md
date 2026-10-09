@@ -182,15 +182,25 @@ the updater exits and relaunches Steam, so the launched process "ends" after upd
   launch to video went from ~90 s to 17 s. `applemedia` (VideoToolbox H.264) still links
   GStreamer's own MoltenVK, so the process holds two copies (objc duplicate-class warning);
   no harm seen with DXMT, but Vulkan games that play video should be checked.
-- **Deep Rock Galactic** (UE4, 2026-10-09 rerun): stays on its 601×201 launcher splash at
-  ~2% CPU for 4+ minutes. The game's log ends right after NVIDIA Streamline fails to
-  initialise ("Failed to initialize Streamline (8, Result::eErrorNoPlugins)"). The DXMT
-  worker threads are idle. Same result with and without GStreamer, on both the
-  original and the v2 patched Wine 11.18, in the old `w1118` prefix and a fresh one, through
-  the stub or the Shipping exe directly, and with or without `steam_appid.txt` beside the
-  Shipping exe. wined3d stops earlier ("Failed to choose a D3D11 Adapter"). The batch run
-  that passed reached the titled main window in 70 s; what changed since is unknown.
-  The smoke test now reports a window smaller than 640×360 as SPLASH instead of PASS.
+- **Deep Rock Galactic** (UE4): intermittently stayed on its 601×201 launcher splash at ~2%
+  CPU (six hangs in a row on 2026-10-09; an earlier batch run got through). Not GStreamer,
+  NVAPI, Steam files, msync, the prefix or the stub. macOS `sample` showed a **winemac
+  deadlock in stock Wine 11.18**:
+  - the splash thread runs `NtUserSetLayeredWindowAttributes` → `apply_window_pos` (holds
+    win32u's user lock) → `update_surface_region` → `window_surface_set_shape` →
+    `window_surface_flush` → `macdrv_surface_flush` → `get_win_data`, waiting for winemac's
+    `win_data_mutex`;
+  - the main thread, creating the game window, is in `macdrv_WindowPosChanged` (holds
+    `win_data_mutex`) → `set_cocoa_window_properties` → `NtUserGetWindowLongW`, waiting for
+    the user lock.
+  The flush's `get_win_data` came with upstream commit 1a1d1f3f ("winemac.drv: Hide
+  client_view when flushing window surfaces", 2026-08-11) and is still on Wine master.
+  `tools/wine-dxmt/winemac-flush-deadlock.patch` makes the flush use a non-blocking
+  `try_get_win_data` (a later flush hides the view if the lock is busy). Patched: 4 of 4 runs
+  reach the game window (1920×1080), which then says "Waiting for Steam to load", so the
+  game needs the Steam client. (A debugger attach also unsticks the hang, which is why one
+  run "recovered" while being inspected.) The smoke test now reports a window smaller than
+  640×360 as SPLASH instead of PASS.
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
   The Windows build can't be judged from it.
@@ -315,7 +325,8 @@ OneBit Adventure, Farmer Against Potatoes Idle, IncreKnight, GrassChopper, Idle 
 BALL x PIT, Game About Botting in an MMORPG, Wireframe Racing, Wireframe Warfare, Forage
 Wizard, Apple Picker, Gridle, Souper Game, One Btn Bosses, PlateUp, PEAK, Tropical Monster
 Girls, Death's Door, Erenshor, Oxygen Train (Unity 2019–6000.3); Deep Rock Galactic (UE4
-stub → `-dx11`, no Steam relaunch; **not reproducible on 2026-10-09**, see Diagnoses).
+stub → `-dx11`, no Steam relaunch; intermittent splash hang fixed by a winemac patch, then
+it waits for Steam: see Diagnoses).
 
 Failures:
 - **Database Detective** (Unity 6000.5): `-force-d3d11` → "Forced GfxDevice 'Direct3D 11'

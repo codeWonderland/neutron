@@ -40,7 +40,8 @@ DXMT draws into game windows through functions in Wine's Mac driver that stock W
 keep private. Without them a game starts but every frame fails with *"Failed to create metal
 view, it seems like your Wine has no exported symbols needed by DXMT"*.
 `tools/wine-dxmt/build.sh` makes a patched copy of a Gcenx build. It rebuilds only
-`winemac.so` (with `winemac-dxmt.patch`) and `mfreadwrite.dll` (with
+`winemac.so` (with `winemac-dxmt.patch`, plus `winemac-flush-deadlock.patch`, which fixes a
+Wine 11 hang where Unreal games stay on their splash screen) and `mfreadwrite.dll` (with
 `mfreadwrite-shared-samples.patch`, so Unity games' videos play under DXMT) from the
 matching Wine source, which takes a few minutes the first time:
 

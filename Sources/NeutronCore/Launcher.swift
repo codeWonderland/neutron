@@ -139,9 +139,10 @@ public struct Launcher: Sendable {
                           prefixName: prefix.config.name, winePrefix: prefix.winePrefix)
     }
 
-    /// Runs the plan in the foreground with inherited stdio and returns Wine's exit status.
-    /// First builds the composed runtime and installs the backend's DLLs into the prefix.
-    public func run(_ plan: LaunchPlan) throws -> Int32 {
+    /// Runs the plan in the foreground and returns Wine's exit status. First builds the
+    /// composed runtime and installs the backend's DLLs into the prefix. With `log`, output
+    /// goes to that file (see `LaunchLog`) and is echoed to stderr; otherwise stdio is inherited.
+    public func run(_ plan: LaunchPlan, log: URL? = nil) throws -> Int32 {
         if let composition = plan.composition {
             try composition.build()
             if !composition.missingPrefixDLLs(winePrefix: plan.winePrefix).isEmpty {
@@ -149,7 +150,7 @@ public struct Launcher: Sendable {
                 update.arguments = ["wineboot", "-u"]
                 update.workingDirectory = nil
                 update.composition = nil
-                _ = try run(update)
+                _ = try run(update, log: log)
                 let missing = composition.missingPrefixDLLs(winePrefix: plan.winePrefix)
                 if !missing.isEmpty {
                     throw NeutronError.prefixMissingBackendDLLs(prefix: plan.prefixName, runtime: composition.backend.kind, files: missing)
@@ -162,8 +163,32 @@ public struct Launcher: Sendable {
         process.arguments = plan.arguments
         process.environment = ProcessInfo.processInfo.environment.merging(plan.environment) { _, new in new }
         if let directory = plan.workingDirectory { process.currentDirectoryURL = directory }
+        guard let log else {
+            try process.run()
+            process.waitUntilExit()
+            return process.terminationStatus
+        }
+
+        let fm = FileManager.default
+        try fm.createDirectory(at: log.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if !fm.fileExists(atPath: log.path) { fm.createFile(atPath: log.path, contents: nil) }
+        let writer = try FileHandle(forWritingTo: log)
+        defer { try? writer.close() }
+        writer.seekToEndOfFile()
+        writer.write(Data(LaunchLog.header(for: plan, date: Date()).utf8))
+        let reader = try FileHandle(forReadingFrom: log)
+        defer { try? reader.close() }
+        reader.seekToEndOfFile()
+
+        process.standardOutput = writer
+        process.standardError = writer
         try process.run()
-        process.waitUntilExit()
+        let echo = { FileHandle.standardError.write(reader.readDataToEndOfFile()) }
+        while process.isRunning {
+            echo()
+            usleep(100_000)
+        }
+        echo()
         return process.terminationStatus
     }
 }

@@ -71,7 +71,8 @@ every push and PR. There is no linter configured.
 
 State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `NEUTRON_HOME`):
 `prefixes/<name>/neutron.json` (config) + `prefixes/<name>/pfx/` (the actual `WINEPREFIX`),
-`runtimes/manifest.json`, and disposable `runtimes/composed/<wine>+<kind>-<version>/` builds.
+`runtimes/manifest.json`, disposable `runtimes/composed/<wine>+<kind>-<version>/` builds, and
+`logs/<prefix>/` (per-launch logs; `LaunchLog.swift` explains why it's a file, not a pipe).
 
 ## Layout
 

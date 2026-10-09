@@ -81,6 +81,9 @@ neutron kill                                  # or --all; uses the prefix's own 
 ```
 
 State lives in `~/Library/Application Support/Neutron` (override with `NEUTRON_HOME`).
+Every `neutron run` also writes a log to `logs/<prefix>/` there (the newest 20 are kept;
+`--no-log` to skip), starting with the exact environment and command, which is handy for
+bug reports.
 Steam games usually need a `steam_appid.txt` containing the game's app ID next to the
 `.exe` when Steam isn't running.
 

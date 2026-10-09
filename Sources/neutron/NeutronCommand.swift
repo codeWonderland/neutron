@@ -57,8 +57,8 @@ func printPlan(_ plan: LaunchPlan) {
     print(([plan.executable.path] + plan.arguments).joined(separator: " "))
 }
 
-func execute(_ plan: LaunchPlan) throws {
+func execute(_ plan: LaunchPlan, log: URL? = nil) throws {
     fflush(stdout)  // so our messages come before Wine's output when piped
-    let status = try Env.launcher.run(plan)
+    let status = try Env.launcher.run(plan, log: log)
     if status != 0 { throw ExitCode(status) }
 }

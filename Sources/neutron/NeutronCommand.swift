@@ -8,7 +8,7 @@ struct NeutronCommand: ParsableCommand {
         commandName: "neutron",
         abstract: "Run Windows games on macOS with Wine, DXMT and D3DMetal.",
         version: "0.1.0",
-        subcommands: [RunCommand.self, DetectCommand.self, WineCommand.self, KillCommand.self,
+        subcommands: [RunCommand.self, DetectCommand.self, WineCommand.self, KillCommand.self, DoctorCommand.self,
                       PrefixCommand.self, RuntimeCommand.self]
     )
 }

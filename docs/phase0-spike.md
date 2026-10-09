@@ -216,6 +216,42 @@ see the games table for details. 2026-10-09:
 | FAIL | Idle Colony | error dialog "Wine C++ Runtime Library" |
 | FAIL | CATR | relaunches through Steam (needs the Steam client) |
 
+### Library batch (2026-10-09)
+
+`~/neutron-games/scripts/batch.sh`-style run: copy each game, `neutron detect`, smoke test
+on patched Gcenx 11.18 + DXMT v0.80 (45–70 s), delete. 32 games, **26 PASS**:
+Cursorblade, My Pet Femboy, Femboy Fury (GameMaker); Toilet Paper Idle, Stream Avatars,
+OneBit Adventure, Farmer Against Potatoes Idle, IncreKnight, GrassChopper, Idle Hero TD,
+BALL x PIT, Game About Botting in an MMORPG, Wireframe Racing, Wireframe Warfare, Forage
+Wizard, Apple Picker, Gridle, Souper Game, One Btn Bosses, PlateUp, PEAK, Tropical Monster
+Girls, Death's Door, Erenshor, Oxygen Train (Unity 2019–6000.3); Deep Rock Galactic (UE4
+stub → `-dx11`, no Steam relaunch).
+
+Failures:
+- **Database Detective** (Unity 6000.5): `-force-d3d11` → "Forced GfxDevice 'Direct3D 11'
+  was not built from editor … InitializeEngineGraphics failed". The build ships no D3D11
+  shaders. Without the flag Unity falls back to OpenGL ("4.1 Metal") and then fails on .NET
+  `System.Native`; this install mixes Windows and Linux files (`copOS.x86_64`,
+  `UnityPlayer.so`), so it can't be judged here. **Neutron no longer forces D3D11 for Unity**:
+  without the flag Unity tries D3D12, which fails here ("failed to create D3D12 device
+  (0x80004002)"), and falls back to D3D11 on DXMT by itself (Berry Bounce, Deep Rock Survivor).
+- **Timberborn** (Unity 6000.5, BepInEx mods installed): D3D11 on DXMT works, then the game
+  hangs at the start of its 110 s intro video. Media Foundation fails
+  (`WindowsVideoMedia error 0xc00d36bb`) because Gcenx's `winegstreamer.so` needs GStreamer
+  1.28 (`@rpath`, `/Library/Frameworks/GStreamer.framework/Libraries`). Pointing
+  `DYLD_FALLBACK_LIBRARY_PATH` and `GST_PLUGIN_SYSTEM_PATH_1_0` at the Sikarugir Template's
+  GStreamer.framework (x86_64, 1.28) removes the error, but the game still hangs there.
+- **Deep Rock Survivor** (Unity 6000.4): D3D11 on DXMT; black after `SteamAPI_Init() failed`
+  in its platform-service code. Likely needs the Steam client.
+- **Legends of Idleon**: Electron 11 (Chromium 87); exits. See Electron below.
+- **SUPERHOT VR**: needs a VR runtime (expected).
+- **Novus Orbis**: still on the "Made with Unity" splash at 70 s (renders; slow start).
+- A game about sucking … Demo: not copied (path quoting), retested separately.
+
+Also: Wine 11's built-in D3D12 (vkd3d → MoltenVK) creates a device for `d3dprobe 12` on
+plain Wine, but Unity's D3D12 init fails on it. Unreal 5 (Digging A Hole) loads D3D11 even
+without `-dx11` (its default RHI); `-dx11` stays as a guard.
+
 ### Games
 
 | Game | API | Mac / macOS | Backend | Works? | FPS | Env / fixes needed | Notes |

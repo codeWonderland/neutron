@@ -129,12 +129,14 @@ final class EngineTests: XCTestCase {
     }
 
     func testEngineArguments() {
-        let unity = GameEngine.unity(version: "2022.3.1f1")
-        XCTAssertEqual(unity.arguments(for: .dxmt, userArguments: []), ["-force-d3d11"])
-        XCTAssertEqual(unity.arguments(for: .wined3d, userArguments: []), ["-force-d3d11"])
-        XCTAssertEqual(unity.arguments(for: .d3dmetal, userArguments: []), [])
-        XCTAssertEqual(unity.arguments(for: .dxmt, userArguments: ["-Force-D3D12"]), [])
-        XCTAssertEqual(GameEngine.unreal(version: nil).arguments(for: .dxmt, userArguments: ["-windowed"]), ["-dx11"])
+        // Unity falls back from D3D12 to D3D11 by itself; forcing breaks builds without D3D11.
+        let unity = GameEngine.unity(version: "6000.5.5f1")
+        for backend in GraphicsBackend.allCases { XCTAssertEqual(unity.arguments(for: backend, userArguments: []), []) }
+        let unreal = GameEngine.unreal(version: nil)
+        XCTAssertEqual(unreal.arguments(for: .dxmt, userArguments: ["-windowed"]), ["-dx11"])
+        XCTAssertEqual(unreal.arguments(for: .wined3d, userArguments: []), ["-dx11"])
+        XCTAssertEqual(unreal.arguments(for: .d3dmetal, userArguments: []), [])
+        XCTAssertEqual(unreal.arguments(for: .dxmt, userArguments: ["-DX12"]), [])
     }
 
     func testMiddlewareDLLsDontForceD3D12() throws {

@@ -101,7 +101,7 @@ Auto-detection recognises Unity, Unreal and Godot games (following Unreal's stub
 to the real `*-Shipping.exe`). Godot 4 games are told to use Vulkan, which runs through
 Wine's MoltenVK, so they need no Direct3D layer. Games that ship the D3D12 Agility SDK (Unity 6, Unreal 5) get
 `d3dmetal`, falling back to `dxmt` if you haven't registered GPTK. Other engine games get
-`dxmt` with the engine told to use D3D11 (`-force-d3d11` / `-dx11`). Everything else is
+`dxmt` (Unreal is told to use D3D11 with `-dx11`; Unity falls back to D3D11 by itself). Everything else is
 decided by the PE import tables of the `.exe` and the DLLs beside it: D3D12 → `d3dmetal`,
 D3D10/11 → `dxmt`, older APIs → `wined3d`. `neutron detect game.exe` shows the reasoning.
 

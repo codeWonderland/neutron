@@ -49,7 +49,8 @@ every push and PR. There is no linter configured.
    layer (Godot 4 gets `--rendering-driver vulkan`). Other games
    use PE imports of the exe and sibling DLLs (minus middleware like EOS/CEF): d3d12 →
    `d3dmetal`, d3d10/11/dxgi → `dxmt`, else `wined3d`. On backends without D3D12, engine
-   games get `-force-d3d11` (Unity) or `-dx11` (Unreal) unless `--no-engine-args`.
+   Unreal games get `-dx11` unless `--no-engine-args`; Unity gets no flag (it falls back to
+   D3D11 itself, and forcing breaks builds without D3D11 shaders).
 2. **Runtimes**: each backend's `requiredRuntime` (dxmt → `dxmt`, d3dmetal → `gptk`) and Wine
    (version pinned by the prefix, else newest) come from `RuntimeStore`, a JSON manifest that
    records paths to user-downloaded runtimes; nothing is copied. `Runtime` computes per-kind

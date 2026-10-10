@@ -4,6 +4,7 @@
 //   d3dprobe.exe        D3D11 device + adapter info
 //   d3dprobe.exe 12     D3D12 device
 //   d3dprobe.exe 9      D3D9 device (HAL, hidden window) + adapter info
+//   d3dprobe.exe 8      D3D8 device (HAL, hidden window) + adapter info (d3dprobe8.c)
 //   d3dprobe.exe shared D3D11 shared texture: GetSharedHandle on one device, open on another
 //                       (what Media Foundation video playback in Unity relies on)
 //   d3dprobe.exe timestamp  D3D11 timestamp + disjoint queries around a clear (what Unreal's GPU
@@ -83,6 +84,8 @@ static int probe_d3d12(void) {
     ID3D12Device_Release(device);
     return 0;
 }
+
+int probe_d3d8(void);
 
 static int probe_d3d9(void) {
     IDirect3D9 *d3d = Direct3DCreate9(D3D_SDK_VERSION);
@@ -382,6 +385,7 @@ int main(int argc, char **argv) {
         return crossproc_child((HWND)hwnd);
     }
     int result = strcmp(mode, "12") == 0 ? probe_d3d12() : strcmp(mode, "9") == 0 ? probe_d3d9()
+               : strcmp(mode, "8") == 0 ? probe_d3d8()
                : strcmp(mode, "shared") == 0 ? probe_shared()
                : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
                : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
@@ -391,6 +395,7 @@ int main(int argc, char **argv) {
     print_module("d3d11.dll");
     print_module("d3d12.dll");
     print_module("d3d9.dll");
+    print_module("d3d8.dll");
     print_module("dxgi.dll");
     print_module("winemetal.dll");
     print_module("wined3d.dll");

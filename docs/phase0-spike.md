@@ -253,7 +253,8 @@ every time; the script-built one doesn't, so always use `tools/wine-dxmt/build.s
   d3d9 at runtime, so auto picks wined3d) on Wine 11.18 (tools/wine-dxmt) + wined3d:
   `02.Quake3Map` with Direct3D 9.0c renders the Quake 3 level at ~230–240 fps (640×480);
   `10.Shaders` renders on D3D9 with assembly shaders (~410 fps) and with HLSL compiled through
-  Wine's d3dx9 (~420 fps). Its D3D8 driver isn't compiled into that SDK build. (Its console
+  Wine's d3dx9 (~420 fps). Its D3D8 driver isn't compiled into that SDK build;
+  `d3dprobe32 8` instead creates a D3D8 HAL device (wined3d) and clears and presents. (Its console
   prompts read stdin: pipe the answers; `10.Shaders` asks driver, HLSL y/n, then Cg y/n.)
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.

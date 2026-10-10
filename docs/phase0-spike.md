@@ -256,6 +256,17 @@ installed, that relaunches it through `steam://run/4480440`, which Steam refuses
 the demo isn't in the account's library), and the game quits. In prefixes without Steam it runs.
 Games like this must be started from Steam once Steam is installed in their prefix.
 
+### Itch games (2026-10-10)
+
+From the desktop's `/mnt/Storage` itch folders, smoke-tested in the Steam prefix (Wine
+11.18-dxmt-v11):
+
+| Game | Result |
+|---|---|
+| Quantum Shift (Godot 4.3) | PASS: window renders (`--rendering-driver vulkan` added) |
+| yawnoc (PyInstaller, 64-bit) | PASS: window renders |
+| Te-Tower (Godot 4.3) | Not a Wine problem: the extracted folder has no `.pck` ("Couldn't load project data"); the full game is only in `Te-Tower.rar` |
+
 ### Diagnoses (2026-10-09)
 
 - **Timberborn** (Unity 6000.5): the hang is its 110 s intro video. With the video moved

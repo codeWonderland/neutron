@@ -247,8 +247,14 @@ every time; the script-built one doesn't, so always use `tools/wine-dxmt/build.s
 - **32-bit and D3D9**: no 32-bit Windows game in the library. Terraria's desktop install is
   the Linux FNA build (`lib64/libFNA3D.so.0`), and BeamNG's 32-bit exe is only a launcher.
   `d3dprobe32` on the current Wine build: D3D9 on wined3d (device, clear, present), D3D11 on
-  DXMT (Apple M1, FL 11.0, timestamps OK) and D3D11 on wined3d (FL 9.3) all work. Still
-  unverified with a real game.
+  DXMT (Apple M1, FL 11.0, timestamps OK) and D3D11 on wined3d (FL 9.3) all work.
+  **Real 32-bit D3D9 engine (2026-10-09):** the Irrlicht 1.8.5 SDK's prebuilt
+  `bin/Win32-VisualStudio` examples (32-bit; `Irrlicht.dll` imports only opengl32 and loads
+  d3d9 at runtime, so auto picks wined3d) on Wine 11.18 (tools/wine-dxmt) + wined3d:
+  `02.Quake3Map` with Direct3D 9.0c renders the Quake 3 level at ~230–240 fps (640×480);
+  `10.Shaders` renders on D3D9 with assembly shaders (~410 fps) and with HLSL compiled through
+  Wine's d3dx9 (~420 fps). Its D3D8 driver isn't compiled into that SDK build. (Its console
+  prompts read stdin: pipe the answers; `10.Shaders` asks driver, HLSL y/n, then Cg y/n.)
 - **Database Detective**: the desktop install is the Linux build plus a stray Windows exe:
   `copOS_Data/Plugins` has `lib_burst_generated.so` and the managed BCL wants `System.Native`.
   The Windows build can't be judged from it.

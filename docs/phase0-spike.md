@@ -300,8 +300,11 @@ every time; the script-built one doesn't, so always use `tools/wine-dxmt/build.s
     calibration OK on the first attempt; Satisfactory initialises its engine and renders its
     loading screen at 1920×1080 for 5+ minutes with no assert. It stays there: ~3 fps, ~50%
     CPU, almost all of it blocked in the kernel (macOS `sample`), so it's waiting rather than
-    compiling or loading. SteamAPI fails to initialise without the Steam client, so it very
-    likely waits for its online platform (Phase 3). The regression sweep is unchanged.
+    compiling or loading. The log shows the menu map itself loaded within seconds
+    (`LoadMap /Game/FactoryGame/Map/MenuScenes/Map_Menu_1_02` complete, also with `-nosteam`,
+    which this Steam build ignores: SteamAPI still initialises and fails), so rendering and
+    loading are done and the overlay waits for the online platform login. It needs a signed-in
+    Steam client (Phase 3). The regression sweep is unchanged.
     (A run that seemed to show 0.4 fps and a 5 s "Timed out while waiting for GPU query" was
     the Mac going to sleep mid-test; `pmset -g log` shows it. Long unattended tests now run
     under `caffeinate`.)

@@ -93,7 +93,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
       Upstream DXMT and Wine are the right home; prototype in `tools/` patches first.
       *(Done with `tools/wine-dxmt/winemac-remote-metal.patch` + `tools/dxmt-patch/
       cross-process-swapchain.patch`, reusing Wine 11's CAContext swapchain; Steam's sign-in
-      window renders. Child windows are hosted full-size in their top-level window.)*
+      window renders. Child windows are placed over their area at creation; later moves of a
+      child inside its window aren't tracked yet.)*
 - [x] `neutron steam install`: Windows Steam in a shared prefix; `neutron steam` starts it
       *(installs, updates and shows its sign-in window with the patched Wine + DXMT; removes its
       `HKCU\...\Run` autostart, which `wineboot` would start without the backend's environment.

@@ -172,9 +172,12 @@ Vulkan: `CAContextSwapChain` renders into a `CAContext`, and `WM_MACDRV_CREATE_R
 makes the window's owner host it with `CALayerHost` (top-level windows only; child windows
 hit a FIXME). Two patches wire DXMT to it:
 - `tools/wine-dxmt/winemac-remote-metal.patch`: for a window of another process, the
-  `macdrv_functions` table hands DXMT one of those swapchains in place of a view (a child
-  window is hosted in its top-level window, exact when it fills it, as Steam's does). It
-  also keeps hosting requests that arrive before the owner's Cocoa window exists.
+  `macdrv_functions` table hands DXMT one of those swapchains in place of a view. The owner
+  hosts it in the top-level window, filling it when the target covers it (Steam) and
+  otherwise placed over the child window's area (`d3dprobe crossproc inset`: a 300×200
+  child at (80,60) shows the frames exactly there). It also keeps hosting requests that
+  arrive before the owner's Cocoa window exists. (Placement is fixed at creation; a child
+  that later moves or resizes inside its window isn't tracked yet.)
 - `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
 `d3dprobe crossproc` (one process owns a window with a child window, a second presents red
 into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,

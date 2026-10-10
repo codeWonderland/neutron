@@ -134,7 +134,9 @@ Steam games usually need a `steam_appid.txt` containing the game's app ID next t
 silently and removes its "start at login" entry (Wine would otherwise start Steam during
 `wineboot` without DXMT, leaving a black window). `neutron steam` starts the client on DXMT.
 Its UI is Chromium, which renders from a separate GPU process, so it only shows up with a Wine
-built by `tools/wine-dxmt/build.sh` and a DXMT built by `tools/dxmt-patch/build.sh`. Steam
+built by `tools/wine-dxmt/build.sh` and a DXMT built by `tools/dxmt-patch/build.sh`;
+`neutron doctor` shows which registered builds can ("cross-process"), and `neutron steam` warns
+when the ones it would use can't. Steam
 sometimes crashes during its first self-update; run `neutron steam` again.
 
 Once signed in and with games installed, `neutron steam games` lists them (app ID, name,

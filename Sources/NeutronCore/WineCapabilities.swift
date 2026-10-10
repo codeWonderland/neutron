@@ -14,11 +14,17 @@ public struct WineCapabilities: Equatable, Sendable {
     public let exportsWineUnixCall: Bool
     /// The build has msync (Mach-semaphore sync; reads `WINEMSYNC`). Informational only.
     public let hasMsync: Bool
+    /// winemac can host other processes' Metal layers for DXMT (`tools/wine-dxmt`'s
+    /// winemac-remote-metal.patch exports `macdrv_remote_metal_layers`). Chromium-based UIs such
+    /// as Steam's render from a separate GPU process and stay black without it.
+    public let presentsCrossProcess: Bool
 
-    public init(exportsMacDriverFunctions: Bool, exportsWineUnixCall: Bool, hasMsync: Bool = false) {
+    public init(exportsMacDriverFunctions: Bool, exportsWineUnixCall: Bool, hasMsync: Bool = false,
+                presentsCrossProcess: Bool = false) {
         self.exportsMacDriverFunctions = exportsMacDriverFunctions
         self.exportsWineUnixCall = exportsWineUnixCall
         self.hasMsync = hasMsync
+        self.presentsCrossProcess = presentsCrossProcess
     }
 
     public init(wine: Runtime) {
@@ -27,6 +33,7 @@ public struct WineCapabilities: Equatable, Sendable {
             .map { lib.appendingPathComponent($0) }
             .first { FileManager.default.fileExists(atPath: $0.path) }
         exportsMacDriverFunctions = winemac.map { MachOExports.contains("_macdrv_functions", in: $0) } ?? false
+        presentsCrossProcess = winemac.map { MachOExports.contains("_macdrv_remote_metal_layers", in: $0) } ?? false
         let ntdll = lib.appendingPathComponent("x86_64-windows/ntdll.dll")
         exportsWineUnixCall = (try? PEInfo(contentsOf: ntdll))?.exports.contains("__wine_unix_call") ?? false
         // Upstream's ntdll.so only mentions libc's msync(); msync builds read WINEMSYNC.
@@ -155,5 +162,16 @@ enum MachOExports {
             node = child
         }
         return false
+    }
+}
+
+extension Runtime {
+    /// DXMT: its d3d11.dll accepts swap chains on other processes' windows
+    /// (`tools/dxmt-patch`'s cross-process-swapchain.patch, which logs "presenting remotely").
+    public var dxmtPresentsCrossProcess: Bool {
+        guard kind == .dxmt,
+              let data = try? Data(contentsOf: wineDLLDirectory.appendingPathComponent("x86_64-windows/d3d11.dll"),
+                                   options: .alwaysMapped) else { return false }
+        return data.range(of: Data("presenting remotely".utf8)) != nil
     }
 }

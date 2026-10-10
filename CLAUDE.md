@@ -87,7 +87,8 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   `Runtime.swift` (runtime registry and layouts), `Prefix.swift`, `Backend.swift` (backend
   setup + `BackendResolver`), `Engine.swift` (Unity/Unreal detection, engine flags),
   `ComposedRuntime.swift` (clone + overlay), `PEInfo.swift` (PE import parsing, `GameScan`),
-  `WineCapabilities.swift` (what a Wine build supports, Mach-O/PE export reading),
+  `WineCapabilities.swift` (what a Wine build supports, Mach-O/PE export reading; also
+  whether Wine/DXMT builds present cross-process, for Steam),
   `Doctor.swift` (`neutron doctor` checks), `LaunchLog.swift`, `Steam.swift` (Steam for Windows
   install/launch plans), `SteamLibrary.swift` (VDF parser, library folders, app manifests), `Launcher.swift`
   (`LaunchPlan` building and running).

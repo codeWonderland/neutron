@@ -295,7 +295,7 @@
      if (!(data = get_win_data(hwnd))) return;
  
      thread_data = macdrv_thread_data();
-@@ -2253,13 +2365,65 @@
+@@ -2253,13 +2365,68 @@
      WineContentView         *client_cocoa_view;
      struct macdrv_win_data  *data;
  };
@@ -305,6 +305,9 @@
 + * Vulkan. Upstream only does that for top-level windows; for a child window the owner places
 + * the layer over the child's area of its top-level window (host_remote_layer). The swapchain
 + * stands in for the view, and the functions below recognize it. */
++/* Lets launchers tell that this winemac can host other processes' Metal layers for DXMT. */
++__attribute__((visibility("default"))) const int macdrv_remote_metal_layers = 1;
++
 +static pthread_mutex_t remote_swapchains_mutex = PTHREAD_MUTEX_INITIALIZER;
 +static CFMutableSetRef remote_swapchains;
 +
@@ -362,7 +365,7 @@
      if (!data->cocoa_window || !(ret = malloc(sizeof(*ret))))
      {
          release_win_data(data);
-@@ -2273,6 +2437,32 @@
+@@ -2273,6 +2440,32 @@
      return ret;
  }
  
@@ -395,7 +398,7 @@
  static void external_release_win_data(struct external_win_data *external)
  {
      if (!external) return;
-@@ -2302,8 +2492,8 @@
+@@ -2302,8 +2495,8 @@
      macdrv_get_cocoa_window,
      macdrv_create_metal_device,
      macdrv_release_metal_device,

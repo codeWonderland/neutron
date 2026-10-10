@@ -83,7 +83,8 @@ public enum Doctor {
                                     fix: "Restore it, or re-add the runtime with the right --library-path."))
             }
             guard runtime.kind == .wine else {
-                checks.append(Check(.ok, name))
+                checks.append(Check(.ok, runtime.kind == .dxmt
+                    ? "\(name) (cross-process for Steam's UI: \(runtime.dxmtPresentsCrossProcess ? "yes" : "no"))" : name))
                 continue
             }
             // Wrapper-app engines (Sikarugir) expect their host app's dylibs.
@@ -114,6 +115,7 @@ public enum Doctor {
             func mark(_ yes: Bool) -> String { yes ? "yes" : "no" }
             let summary = "\(name): DXMT \(mark(caps.supports(.dxmt))), D3DMetal \(mark(caps.supports(.d3dmetal))), "
                 + "msync \(mark(caps.hasMsync)), \(wow64 ? "wow64" : "no wow64 (32-bit games may fail)")"
+                + ", cross-process (Steam UI) \(mark(caps.presentsCrossProcess))"
             checks.append(Check(caps.supports(.dxmt) ? .ok : .warning, summary,
                                 fix: caps.problem(with: .dxmt).map { "For DXMT: \($0)." }))
         }

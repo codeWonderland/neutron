@@ -143,6 +143,9 @@ Once signed in and with games installed, `neutron steam games` lists them (app I
 folder; it reads `libraryfolders.vdf` and the `appmanifest_*.acf` files, including libraries on
 other drives) and `neutron steam launch <appid>` starts one through Steam. Games launched that
 way run as Steam's children, so they get Steam's backend (DXMT by default; `--backend` to change).
+To skip re-downloading a game you already have (say, copied from another machine's Steam
+library), `neutron steam import <game folder> --appid <id>` clones it into Steam's library
+with an app manifest; restart Steam and it verifies the files and fetches only what differs.
 
 ## How backends are applied
 

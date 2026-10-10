@@ -66,4 +66,25 @@ final class SteamLibraryTests: XCTestCase {
         XCTAssertEqual(games.first?.directory.path, steam.appendingPathComponent("steamapps/common/Deep Rock Galactic").path)
         XCTAssertEqual(games.map(\.fullyInstalled), [true, false, true])
     }
+
+    /// Importing a local copy clones it into the library with a manifest Steam will verify.
+    func testImportsAGame() throws {
+        let steam = root.appendingPathComponent("pfx/drive_c/Program Files (x86)/Steam")
+        let source = root.appendingPathComponent("copies/Deep Rock Galactic")
+        try Fixtures.write(source.appendingPathComponent("FSD.exe"), Data("MZ".utf8))
+        let installed = try SteamLibrary.importGame(from: source, appID: "548430", steamRoot: steam)
+        XCTAssertEqual(installed.path, steam.appendingPathComponent("steamapps/common/Deep Rock Galactic").path)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: installed.appendingPathComponent("FSD.exe").path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: source.path), "the source is left alone")
+
+        let games = SteamLibrary.games(steamRoot: steam, winePrefix: root.appendingPathComponent("pfx"))
+        XCTAssertEqual(games.map(\.appID), ["548430"])
+        XCTAssertEqual(games.first?.name, "Deep Rock Galactic")
+        XCTAssertEqual(games.first?.fullyInstalled, false, "Steam verifies it first")
+
+        XCTAssertThrowsError(try SteamLibrary.importGame(from: source, appID: "548430", steamRoot: steam)) {
+            XCTAssertEqual($0 as? NeutronError, .steamGameExists(appID: "548430", path: installed.path))
+        }
+        XCTAssertThrowsError(try SteamLibrary.importGame(from: source, appID: "abc", steamRoot: steam))
+    }
 }

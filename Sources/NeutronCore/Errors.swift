@@ -9,6 +9,7 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
     case invalidRuntime(RuntimeKind, path: String, reason: String)
     case fileNotFound(String)
     case invalidGStreamer(String)
+    case steamGameExists(appID: String, path: String)
     case prefixMissingBackendDLLs(prefix: String, runtime: RuntimeKind, files: [String])
 
     public var description: String {
@@ -34,6 +35,8 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
             Install the GStreamer runtime package from https://gstreamer.freedesktop.org/download/ and pass \
             /Library/Frameworks/GStreamer.framework.
             """
+        case .steamGameExists(let appID, let path):
+            return "App \(appID) or \(path) is already in this Steam library. Remove it in Steam first, or import a different copy."
         case .prefixMissingBackendDLLs(let prefix, let runtime, let files):
             return """
             Prefix '\(prefix)' still lacks \(runtime.rawValue) DLLs after `wineboot -u`: \

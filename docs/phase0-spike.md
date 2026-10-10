@@ -245,6 +245,17 @@ Native 32-bit programs (`d3dprobe 8`, Irrlicht) are fine on 11.18.
 `neutron run` now warns when a 32-bit-only .NET program runs on a Wine without
 `__wine_unix_call` (Wine 10+).
 
+### Regression sweep on the final builds (2026-10-10)
+
+`sweep.sh` (60 s per game) on Wine 11.18-dxmt-v11 + DXMT v0.80 patched, in the signed-in Steam
+prefix. It matches the 2026-10-09 sweep: 9 PASS, plus the same two known failures (the Ghost
+Vacuum demo's black window, Idle Colony's C++ runtime dialog). The one change is Loop Tower Demo,
+and it's the prefix, not the builds: its GameMaker Steamworks extension deletes
+`steam_appid.txt` itself and calls `RestartAppIfNecessary`. In a prefix with the Steam client
+installed, that relaunches it through `steam://run/4480440`, which Steam refuses (`AppError_18`:
+the demo isn't in the account's library), and the game quits. In prefixes without Steam it runs.
+Games like this must be started from Steam once Steam is installed in their prefix.
+
 ### Diagnoses (2026-10-09)
 
 - **Timberborn** (Unity 6000.5): the hang is its 110 s intro video. With the video moved

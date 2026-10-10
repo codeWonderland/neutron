@@ -214,7 +214,8 @@ copy lacked, ~5 min). `neutron steam games` listed both (plus Steamworks Common 
 | Needle In A Haystack (UE5) | import, `neutron steam launch 4772020` | Main menu (1920×1080) |
 | Deep Rock Galactic: Survivor | import, `neutron steam launch 2321470` | Title screen with the signed-in Steam profile shown |
 | ASTRONEER (UE4) | import, `neutron steam launch 361420` | Not started: Steam waits for its EULA to be accepted in the UI (`LaunchApp waiting for user response to ShowEula`); untested until someone clicks it |
-| Legends of Idleon (Electron) | import, `neutron steam launch 1476970` (also with `-- --no-sandbox`) | Main process exits with code 3 after 6–20 s, no window. Run directly in the Steam prefix with Steam running (`neutron run -p steam …/LegendsOfIdleon.exe -- --no-sandbox`) it initialises the Steam API, loads and runs (confirmed by the user). Why `-applaunch` fails is still open |
+| Legends of Idleon (Electron) | import, `neutron steam launch 1476970 -- --disable-direct-composition` | Loading screen, then runs. Without the flag the main process exits with code 3 within seconds, no window. Steam's overlay (`gameoverlayrenderer64.dll`) hooks the D3D11 swap chain of Chromium's in-process GPU thread, which also loads Wine's mostly-stub `dcomp.dll`. Turning off the overlay for the game (`"OverlayAppEnable" "0"` in `localconfig.vdf`), `--disable-direct-composition` or `--disable-gpu` each fix it; running the exe directly (no overlay) works too. Candidate for the Phase 2 compatibility database (Steam launch option `%command% --disable-direct-composition`) |
+| Carly and the Reaperman (CATR, Unity) | import (verified, no download), `neutron steam launch 547480` | Main menu |
 
 The imports above verified with no download. Steam logs a second MoltenVK
 (`MVKBlockObserver is implemented in both …`): GStreamer's `applemedia` and `vulkan` plugins link

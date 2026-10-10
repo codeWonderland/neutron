@@ -115,4 +115,22 @@ final class DoctorTests: XCTestCase {
         XCTAssertTrue(titles(result, .warning).contains("prefix fresh: not initialized"))
         XCTAssertTrue(titles(result, .failure).contains("prefix dxmtpin: pinned dxmt v9 isn't registered"))
     }
+
+    /// Without Rosetta, spawning an Intel Wine fails with EBADARCH; any foreign CPU type does
+    /// the same, so a PowerPC Mach-O header stands in for it.
+    func testLauncherReportsMissingRosettaForBadCPUType() throws {
+        try FileManager.default.createDirectory(at: paths.root, withIntermediateDirectories: true)
+        let exe = paths.root.appendingPathComponent("wine")
+        var header = [UInt8](repeating: 0, count: 28)
+        header[0...3] = [0xce, 0xfa, 0xed, 0xfe]  // MH_MAGIC
+        header[4] = 0x12                           // CPU_TYPE_POWERPC
+        header[12] = 2                             // MH_EXECUTE
+        try Data(header).write(to: exe)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: exe.path)
+        let process = Process()
+        process.executableURL = exe
+        XCTAssertThrowsError(try Launcher.start(process)) { error in
+            XCTAssertEqual(error as? NeutronError, .rosettaMissing(executable: exe.path))
+        }
+    }
 }

@@ -70,7 +70,9 @@ final class DoctorTests: XCTestCase {
         let warnings = titles(result, .warning)
         XCTAssertTrue(warnings.contains { $0.hasPrefix("wine 11.18: DXMT no, D3DMetal no, msync no, wow64") }, "\(warnings)")
         XCTAssertTrue(warnings.contains { $0.hasPrefix("No registered Wine can present DXMT frames") })
-        XCTAssertTrue(titles(checks(), .ok).contains { $0.hasPrefix("wine 11.18: DXMT yes") })
+        XCTAssertTrue(titles(checks(), .ok).contains { $0.hasPrefix("wine 11.18: DXMT yes") && $0.hasSuffix("32-bit .NET no") })
+        let wine9 = checks(caps: WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: true))
+        XCTAssertTrue(titles(wine9, .ok).contains { $0.hasSuffix("32-bit .NET yes") }, "\(titles(wine9, .ok))")
     }
 
     func testMissingWrapperLibraries() throws {

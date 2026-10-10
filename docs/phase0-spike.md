@@ -264,6 +264,15 @@ Updating the M1 from macOS 15.5 to 27.0.1 removed Rosetta 2: every x86_64 Wine f
 reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the Apple M1 (FL 11.0),
 32-bit D3D8 on wined3d creates and presents, and `neutron doctor` is all green.
 
+### Deadzone Rogue 2 Playtest (2026-10-10)
+
+UE5 with the D3D12 Agility SDK, so auto-detect picks d3dmetal and falls back to dxmt (`-dx11`, stub
+replaced by `Deadzone2Steam-Win64-Shipping.exe`). **Not testable on this account:** Steam answers
+"Failed installing AppID 4731550 (Not released)", and launched directly the game hands itself to
+`steam://run/4731550//Oak -dx11` and exits before writing a log (Steamworks' restart-if-not-owned
+path). Playtest access, not a Wine/DXMT problem. On macOS 27.0.1 the Steam client itself signs in
+and its UI renders as before.
+
 ### Itch games (2026-10-10)
 
 From the desktop's `/mnt/Storage` itch folders, smoke-tested in the Steam prefix (Wine

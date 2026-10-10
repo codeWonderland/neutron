@@ -131,6 +131,7 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
 
 | Date | Decision | Why |
 |---|---|---|
+| 2026-10-10 | Warn before running 32-bit-only .NET programs (CLR `32BITREQUIRED` or mixed-mode i386) on Wine 10+ | They hang in wine-mono at startup on Wine 11.18 for macOS (WoW64 syscall thunk runs in 32-bit mode); CrossOver 24 (Wine 9) runs them. `__wine_unix_call` marks Wine 9 and older, as for D3DMetal |
 | 2026-10-08 | Swift, macOS 14+, Apple Silicon only | Native APIs; SwiftUI app later shares `NeutronCore` |
 | 2026-10-08 | Open source, MIT | Easy contribution; Wine/DXMT/GPTK keep their own licences |
 | 2026-10-08 | Register runtimes in place (no downloads yet) | Download sources and layouts need confirming in Phase 0 |

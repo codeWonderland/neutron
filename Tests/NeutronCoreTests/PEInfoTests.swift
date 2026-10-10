@@ -18,6 +18,20 @@ final class PEInfoTests: XCTestCase {
         XCTAssertEqual(try PEInfo(data: makePE()).exports, [])
     }
 
+    func testReadsCLRFlags() throws {
+        XCTAssertNil(try PEInfo(data: makePE()).clrFlags)
+        XCTAssertFalse(try PEInfo(data: makePE()).isDotNet32BitOnly)
+        // XNA games: 32-bit, IL-only + 32BITREQUIRED (Secrets of Grindea has flags 0x3).
+        let xna = try PEInfo(data: Fixtures.makePE(imports: ["mscoree.dll"], machine: 0x14C, clrFlags: 0x3))
+        XCTAssertEqual(xna.clrFlags, 0x3)
+        XCTAssertTrue(xna.isDotNet32BitOnly)
+        // Mixed-mode (not IL-only) 32-bit assemblies are 32-bit too.
+        XCTAssertTrue(try PEInfo(data: Fixtures.makePE(imports: ["mscoree.dll"], machine: 0x14C, clrFlags: 0x0)).isDotNet32BitOnly)
+        // AnyCPU (32-bit image, IL-only) runs as 64-bit; so do 64-bit images.
+        XCTAssertFalse(try PEInfo(data: Fixtures.makePE(imports: ["mscoree.dll"], machine: 0x14C, clrFlags: 0x1)).isDotNet32BitOnly)
+        XCTAssertFalse(try PEInfo(data: Fixtures.makePE(imports: ["mscoree.dll"], clrFlags: 0x3)).isDotNet32BitOnly)
+    }
+
     func testRejectsNonPE() {
         XCTAssertThrowsError(try PEInfo(data: Data("#!/bin/sh\n".utf8)))
     }

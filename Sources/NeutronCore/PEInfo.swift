@@ -32,6 +32,16 @@ public struct PEInfo: Equatable, Sendable {
     public let imports: Set<String>
     /// Names in the export table, as written (case-sensitive).
     public let exports: Set<String>
+    /// Flags from the CLR (.NET) header; nil for native programs.
+    public let clrFlags: UInt32?
+
+    /// A .NET program that only runs as a 32-bit process: a 32-bit image that is mixed-mode
+    /// (not IL-only) or marked 32BITREQUIRED, as XNA games are. IL-only images without that
+    /// flag (AnyCPU) run as 64-bit.
+    public var isDotNet32BitOnly: Bool {
+        guard machine == .i386, let flags = clrFlags else { return false }
+        return flags & 0x1 == 0 || flags & 0x2 != 0
+    }
 
     public init(contentsOf url: URL) throws {
         try self.init(data: Data(contentsOf: url, options: .mappedIfSafe))
@@ -121,6 +131,13 @@ public struct PEInfo: Equatable, Sendable {
             }
         }
         exports = exported
+
+        // CLR runtime header (index 14): flags at +16.
+        if directoryCount > 14, let header = offset(ofRVA: try r.u32(directories + 14 * 8)) {
+            clrFlags = try r.u32(header + 16)
+        } else {
+            clrFlags = nil
+        }
     }
 }
 

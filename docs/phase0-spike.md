@@ -221,6 +221,30 @@ The imports above verified with no download. Steam logs a second MoltenVK
 (`MVKBlockObserver is implemented in both …`): GStreamer's `applemedia` and `vulkan` plugins link
 the framework's own `libMoltenVK.dylib`. Video still plays; no crash traced to it so far.
 
+### 32-bit .NET / XNA (Secrets of Grindea, 2026-10-10)
+
+The desktop library has only three native 32-bit games: BeamNG.drive (51 GB) and Dungeon
+Defenders 2 (21 GB, UE3 Win32), which didn't fit on the test Mac, and Secrets of Grindea
+(Steam 269770, 0.8 GB), a 32-bit XNA 4.0 game (CLR flags `ILONLY | 32BITREQUIRED`).
+wine-mono maps XNA to FNA, so this tests 32-bit .NET under WoW64 rather than D3D9.
+
+| Wine | Result |
+|---|---|
+| 11.18-dxmt-v11 (via Steam and directly) | Hangs at startup: one thread at 100% CPU, no window |
+| Stock Gcenx 11.18 | Same hang |
+| Stock 11.18 + wine-mono 9.0.0 (CX24's) in the prefix | Same hang |
+| CrossOver 24 (Wine 9, `neutron run` with CX24 registered) | Splash, intro credits, then the in-game loading screen |
+
+A 32-bit `hello.exe` built with wine-mono's `mcs -platform:x86` reproduces the bug (the x64
+build prints and exits on 11.18). With `+seh` there's one access violation, at `wow64cpu.dll`
++0x1135, reading address `0x2EC5`. That instruction is `mov 0x2ec5(%rip),%edx` in the 64-bit
+syscall entry, so it ran in 32-bit mode: the 32→64 switch didn't happen (`cs=0107`). With
+`+relay` it follows `BTCpuResetToConsistentState`. CX24 goes through `wow64cpu` too (it also
+prints "experimental wow64 mode") and works, so this is a regression between Wine 9 and Wine 11.
+Native 32-bit programs (`d3dprobe 8`, Irrlicht) are fine on 11.18.
+`neutron run` now warns when a 32-bit-only .NET program runs on a Wine without
+`__wine_unix_call` (Wine 10+).
+
 ### Diagnoses (2026-10-09)
 
 - **Timberborn** (Unity 6000.5): the hang is its 110 s intro video. With the video moved

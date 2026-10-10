@@ -41,6 +41,12 @@ public struct WineCapabilities: Equatable, Sendable {
             .map { $0.range(of: Data("WINEMSYNC".utf8)) != nil } ?? false
     }
 
+    /// 32-bit-only .NET programs (XNA games) hang at startup in wine-mono on Wine 10+ for macOS:
+    /// the WoW64 syscall thunk runs in 32-bit mode and faults (Wine 11.18, stock and patched;
+    /// wine-mono 9 and 11). CrossOver 24 (Wine 9) runs them. `__wine_unix_call` (gone in Wine
+    /// 10) marks the older builds.
+    public var runsDotNet32Bit: Bool { exportsWineUnixCall }
+
     public func supports(_ backend: GraphicsBackend) -> Bool {
         switch backend {
         case .wined3d: return true

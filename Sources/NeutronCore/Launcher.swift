@@ -97,6 +97,9 @@ public struct Launcher: Sendable {
         if let problem = capabilities.problem(with: backend) {
             notes.append("warning: wine \(wine.version) probably can't run \(backend.rawValue): \(problem)")
         }
+        if scan?.executable.isDotNet32BitOnly == true, !capabilities.runsDotNet32Bit {
+            notes.append("warning: \(program.lastPathComponent) is a 32-bit .NET program; those hang at startup on wine \(wine.version) (Wine 10+ on macOS). Use a CrossOver-based Wine 9: `neutron prefix set-runtime \(prefix.config.name) wine <version>`")
+        }
         let runtime = try backend.requiredRuntime.map { try runtimes.find($0, version: prefix.config.pinnedVersion(of: $0)) }
         let setup = try BackendSetup.make(for: backend, runtime: runtime)
 

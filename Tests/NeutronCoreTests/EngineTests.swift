@@ -253,6 +253,32 @@ final class EngineTests: XCTestCase {
         XCTAssertEqual(try launcher.gamePlan(prefix: prefix, program: exe, options: LaunchOptions()).backend, .d3dmetal)
     }
 
+    /// 32-bit-only .NET programs hang in wine-mono on Wine 10+ for macOS, so they get a warning
+    /// there; a Wine 9 (CrossOver-based, exports __wine_unix_call) runs them.
+    func testWarnsAboutDotNet32BitOnWine10Plus() throws {
+        let paths = NeutronPaths(root: root.appendingPathComponent("state"))
+        let runtimes = RuntimeStore(paths: paths)
+        let wine = paths.root.appendingPathComponent("builds/wine")
+        try Fixtures.write(wine.appendingPathComponent("bin/wine"))
+        try runtimes.add(kind: .wine, path: wine)
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "default"))
+        var launcher = Launcher(runtimes: runtimes)
+        launcher.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: false) }
+        let xna = root.appendingPathComponent("Grindea/Secrets Of Grindea.exe")
+        try Fixtures.write(xna, Fixtures.makePE(imports: ["mscoree.dll"], machine: 0x14C, clrFlags: 0x3))
+        let anyCPU = root.appendingPathComponent("Tool/Tool.exe")
+        try Fixtures.write(anyCPU, Fixtures.makePE(imports: ["mscoree.dll"], machine: 0x14C, clrFlags: 0x1))
+
+        let plan = try launcher.gamePlan(prefix: prefix, program: xna, options: LaunchOptions())
+        XCTAssertTrue(plan.notes.contains { $0.hasPrefix("warning:") && $0.contains("32-bit .NET") }, "\(plan.notes)")
+        XCTAssertFalse(try launcher.gamePlan(prefix: prefix, program: anyCPU, options: LaunchOptions())
+            .notes.contains { $0.contains("32-bit .NET") })
+
+        launcher.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: true) }
+        XCTAssertFalse(try launcher.gamePlan(prefix: prefix, program: xna, options: LaunchOptions())
+            .notes.contains { $0.contains("32-bit .NET") })
+    }
+
     /// A launcher with no graphics imports (BeamNG.drive.exe) that starts a game exe in a
     /// subfolder: that exe's imports decide, not the launcher's; tools next to it don't count.
     func testLauncherFollowsGameExeBelowIt() throws {

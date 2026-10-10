@@ -4,7 +4,8 @@ enum Fixtures {
     /// Builds a minimal PE32+ image with one section holding an import table (`imports`),
     /// a delay-import table (`delayImports`), up to 4 names in total, and an export table
     /// (`exports`, up to 8 names).
-    static func makePE(imports: [String], delayImports: [String] = [], exports: [String] = []) -> Data {
+    static func makePE(imports: [String], delayImports: [String] = [], exports: [String] = [],
+                       machine: UInt16 = 0x8664, clrFlags: UInt32? = nil) -> Data {
         precondition(imports.count + delayImports.count <= 4 && exports.count <= 8)
         var b = [UInt8](repeating: 0, count: 0x600)
         func put16(_ o: Int, _ v: UInt16) { for i in 0..<2 { b[o + i] = UInt8(truncatingIfNeeded: v >> (8 * i)) } }
@@ -16,7 +17,7 @@ enum Fixtures {
         put32(0x3C, 0x40)                // e_lfanew
         put32(0x40, 0x0000_4550)         // PE\0\0
         let coff = 0x44
-        put16(coff, 0x8664)              // x86_64
+        put16(coff, machine)             // x86_64 by default
         put16(coff + 2, 1)               // one section
         put16(coff + 16, 240)            // optional header size (PE32+)
         let opt = coff + 20
@@ -26,6 +27,10 @@ enum Fixtures {
         if !imports.isEmpty { put32(opt + 112 + 1 * 8, 0x1000) }       // import table RVA
         if !delayImports.isEmpty { put32(opt + 112 + 13 * 8, 0x1100) } // delay-import table RVA
         if !exports.isEmpty { put32(opt + 112, 0x1200) }                 // export table RVA
+        if let clrFlags {                                                // CLR header at RVA 0x1380
+            put32(opt + 112 + 14 * 8, 0x1380)
+            put32(0x580 + 16, clrFlags)
+        }
 
         let section = opt + 240
         put32(section + 8, 0x1000)       // virtual size

@@ -19,8 +19,9 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
   to DXMT. Unity games never get D3D12 from D3DMetal (no D3D11On12), so they go to DXMT.
 - 32-bit D3D9 works on wined3d (Irrlicht engine examples, real 3D scenes and HLSL; see the
   spike doc). D3D8 device creation works (32-bit `d3dprobe 8`). Launching through a signed-in
-  Steam works (Deep Rock Galactic, Satisfactory; spike doc). **Still unverified:** a commercial
-  32-bit/D3D8/D3D9 game. Don't build on that until tested.
+  Steam works (Deep Rock Galactic, Satisfactory; spike doc). 32-bit .NET/XNA games hang on Wine 10+
+  (Secrets of Grindea; runs on CrossOver 24; spike doc). **Still unverified:** a commercial native
+  32-bit D3D8/D3D9 game. Don't build on that until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
   claim a game works unless it was actually run.

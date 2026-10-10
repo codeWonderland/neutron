@@ -211,6 +211,14 @@ copy lacked, ~5 min). `neutron steam games` listed both (plus Steamworks Common 
 | Deep Rock Galactic (UE4) | `neutron steam launch 548430` | Title screen ("Press any key to continue", v1.40) in ~40 s; past the "Waiting for Steam" stop |
 | Timberborn (Unity 6) | `neutron steam import ~/neutron-games/full/Timberborn --appid 1062090`, Steam restart (verified in 75 s, no download), `neutron steam launch 1062090` | Intro video plays (GStreamer path works under Steam too) |
 | Satisfactory (UE5, 1.2.4.0) | `neutron steam launch 526870` | Main menu, signed in ("Successfully logged in as [Steam:1 …]" via EOS); D3D12 fails (no Agility SDK runtime) and it falls back to D3D11 on the patched DXMT by itself |
+| Needle In A Haystack (UE5) | import, `neutron steam launch 4772020` | Main menu (1920×1080) |
+| Deep Rock Galactic: Survivor | import, `neutron steam launch 2321470` | Title screen with the signed-in Steam profile shown |
+| ASTRONEER (UE4) | import, `neutron steam launch 361420` | Not started: Steam waits for its EULA to be accepted in the UI (`LaunchApp waiting for user response to ShowEula`); untested until someone clicks it |
+| Legends of Idleon (Electron) | import, `neutron steam launch 1476970` (also with `-- --no-sandbox`) | Main process exits with code 3 after 6–20 s, no window. Run directly in the Steam prefix with Steam running (`neutron run -p steam …/LegendsOfIdleon.exe -- --no-sandbox`) it initialises the Steam API, loads and runs (confirmed by the user). Why `-applaunch` fails is still open |
+
+The imports above verified with no download. Steam logs a second MoltenVK
+(`MVKBlockObserver is implemented in both …`): GStreamer's `applemedia` and `vulkan` plugins link
+the framework's own `libMoltenVK.dylib`. Video still plays; no crash traced to it so far.
 
 ### Diagnoses (2026-10-09)
 

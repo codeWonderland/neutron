@@ -220,7 +220,7 @@ public struct Launcher: Sendable {
         process.environment = ProcessInfo.processInfo.environment.merging(plan.environment) { _, new in new }
         if let directory = plan.workingDirectory { process.currentDirectoryURL = directory }
         guard let log else {
-            try process.run()
+            try Launcher.start(process)
             process.waitUntilExit()
             return process.terminationStatus
         }
@@ -238,7 +238,7 @@ public struct Launcher: Sendable {
 
         process.standardOutput = writer
         process.standardError = writer
-        try process.run()
+        try Launcher.start(process)
         let echo = { FileHandle.standardError.write(reader.readDataToEndOfFile()) }
         while process.isRunning {
             echo()
@@ -246,5 +246,15 @@ public struct Launcher: Sendable {
         }
         echo()
         return process.terminationStatus
+    }
+
+    /// Starts `process`, turning "bad CPU type" (an x86_64 Wine without Rosetta) into an
+    /// actionable error.
+    static func start(_ process: Process) throws {
+        do {
+            try process.run()
+        } catch let error as NSError where error.domain == NSPOSIXErrorDomain && error.code == Int(EBADARCH) {
+            throw NeutronError.rosettaMissing(executable: process.executableURL?.path ?? "Wine")
+        }
     }
 }

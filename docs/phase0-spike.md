@@ -256,6 +256,14 @@ installed, that relaunches it through `steam://run/4480440`, which Steam refuses
 the demo isn't in the account's library), and the game quits. In prefixes without Steam it runs.
 Games like this must be started from Steam once Steam is installed in their prefix.
 
+### macOS 27.0.1 update (2026-10-10)
+
+Updating the M1 from macOS 15.5 to 27.0.1 removed Rosetta 2: every x86_64 Wine failed with
+"bad CPU type in executable" until `softwareupdate --install-rosetta --agree-to-license`
+(no password needed). `neutron run` now reports that instead of the raw spawn error. After
+reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the Apple M1 (FL 11.0),
+32-bit D3D8 on wined3d creates and presents, and `neutron doctor` is all green.
+
 ### Itch games (2026-10-10)
 
 From the desktop's `/mnt/Storage` itch folders, smoke-tested in the Steam prefix (Wine

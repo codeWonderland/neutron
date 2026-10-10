@@ -11,6 +11,7 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
     case invalidGStreamer(String)
     case steamGameExists(appID: String, path: String)
     case prefixMissingBackendDLLs(prefix: String, runtime: RuntimeKind, files: [String])
+    case rosettaMissing(executable: String)
 
     public var description: String {
         switch self {
@@ -42,6 +43,11 @@ public enum NeutronError: Error, CustomStringConvertible, Equatable {
             Prefix '\(prefix)' still lacks \(runtime.rawValue) DLLs after `wineboot -u`: \
             \(files.joined(separator: ", ")). Check the output above, or try a fresh prefix with \
             `neutron prefix create <name>`.
+            """
+        case .rosettaMissing(let executable):
+            return """
+            macOS can't run \(executable): it is an Intel binary and Rosetta 2 isn't installed \
+            (macOS updates can remove it). Run `softwareupdate --install-rosetta --agree-to-license`.
             """
         }
     }

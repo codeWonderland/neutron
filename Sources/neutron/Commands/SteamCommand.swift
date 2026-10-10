@@ -10,7 +10,7 @@ struct SteamCommand: ParsableCommand {
         Steam's UI needs DXMT and a Wine built with tools/wine-dxmt plus a DXMT built with \
         tools/dxmt-patch (cross-process presentation); with other builds its window stays black.
         """,
-        subcommands: [Run.self, Install.self],
+        subcommands: [Run.self, Install.self, Games.self, Launch.self],
         defaultSubcommand: Run.self
     )
 
@@ -89,6 +89,60 @@ struct SteamCommand: ParsableCommand {
             LaunchLog.prune(directory: log.deletingLastPathComponent(), keep: LaunchLog.retained - 1)
             print("neutron: log: \(log.path)")
             try execute(plan, log: log)
+        }
+    }
+
+    struct Games: ParsableCommand {
+        static let configuration = CommandConfiguration(abstract: "List the games Steam has installed in a prefix.")
+
+        @Option(name: .shortAndLong, help: "Prefix Steam is installed in.")
+        var prefix = "steam"
+
+        func run() throws {
+            let prefix = try Env.prefixes.get(self.prefix)
+            guard SteamClient.isInstalled(in: prefix) else {
+                throw ValidationError("Steam isn't installed in '\(self.prefix)'. Run `neutron steam install -p \(self.prefix)`.")
+            }
+            let steamRoot = SteamClient.executable(in: prefix).deletingLastPathComponent()
+            let games = SteamLibrary.games(steamRoot: steamRoot, winePrefix: prefix.winePrefix)
+            if games.isEmpty { return print("No games installed yet. Install some from Steam (`neutron steam -p \(self.prefix)`).") }
+            for game in games {
+                print("\(game.appID)\t\(game.name)\(game.fullyInstalled ? "" : " (not fully installed)")\t\(game.directory.path)")
+            }
+        }
+    }
+
+    struct Launch: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Start a game through Steam by app ID (Steam must be signed in).",
+            discussion: "The game runs as Steam's child, so it gets Steam's backend (DXMT by default)."
+        )
+
+        @Argument(help: "Steam app ID (see `neutron steam games`).")
+        var appID: String
+
+        @Option(name: .shortAndLong, help: "Prefix Steam is installed in.")
+        var prefix = "steam"
+
+        @Option(help: "Graphics backend.")
+        var backend: GraphicsBackend = SteamClient.backend
+
+        @Flag(help: "Print the environment and command instead of running.")
+        var dryRun = false
+
+        @Argument(parsing: .postTerminator, help: "Game arguments (after --).")
+        var arguments: [String] = []
+
+        func run() throws {
+            let prefix = try Env.prefixes.get(self.prefix)
+            guard SteamClient.isInstalled(in: prefix) else {
+                throw ValidationError("Steam isn't installed in '\(self.prefix)'. Run `neutron steam install -p \(self.prefix)`.")
+            }
+            let plan = try Env.launcher.steamLaunchGamePlan(prefix: prefix, appID: appID, arguments: arguments,
+                                                            options: LaunchOptions(backend: backend))
+            if dryRun { return printPlan(plan) }
+            _ = try Env.launcher.run(Env.launcher.steamRemoveAutostartPlan(prefix: prefix))
+            try execute(plan)
         }
     }
 }

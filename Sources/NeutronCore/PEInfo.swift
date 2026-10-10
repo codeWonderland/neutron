@@ -231,7 +231,8 @@ public struct GameScan: Sendable {
         imports.contains { $0.hasPrefix("d3d") || $0.hasPrefix("dxgi") || $0 == "ddraw.dll" || $0 == "opengl32.dll" || $0 == "vulkan-1.dll" }
     }
 
-    /// The exe one or two folders below a launcher that imports graphics APIs: preferring
+    /// The exe next to a launcher or one or two folders below it that imports graphics APIs
+    /// (SkyrimSELauncher.exe starts SkyrimSE.exe; BeamNG.drive.exe starts Bin64/…x64.exe): preferring
     /// names that start like the launcher's, then the biggest. Tools (crash reporters,
     /// installers, redistributables) are skipped.
     static func launchedGame(by launcher: URL) -> (url: URL, imports: Set<String>)? {
@@ -244,7 +245,7 @@ public struct GameScan: Sendable {
         for case let url as URL in walker {
             if walker.level > 3 { walker.skipDescendants(); continue }
             let name = url.lastPathComponent.lowercased()
-            guard walker.level > 1, url.pathExtension.lowercased() == "exe",
+            guard url.lastPathComponent != launcher.lastPathComponent, url.pathExtension.lowercased() == "exe",
                   !tools.contains(where: { name.contains($0) }) else { continue }
             candidates.append((url, (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0))
         }

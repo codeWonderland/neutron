@@ -313,4 +313,15 @@ final class EngineTests: XCTestCase {
         XCTAssertTrue(GameScan.isWindowsSystemDirectory(root.appendingPathComponent("pfx/drive_c/Windows/SysWOW64")))
         XCTAssertFalse(GameScan.isWindowsSystemDirectory(root.appendingPathComponent("Games/system32")))
     }
+
+    /// SkyrimSELauncher.exe imports no graphics APIs and starts SkyrimSE.exe from the same folder.
+    func testLauncherFollowsGameExeNextToIt() throws {
+        let game = root.appendingPathComponent("Skyrim Special Edition")
+        let launcher = game.appendingPathComponent("SkyrimSELauncher.exe")
+        try Fixtures.write(launcher, Fixtures.makePE(imports: ["KERNEL32.dll", "steam_api64.dll"]))
+        try Fixtures.write(game.appendingPathComponent("SkyrimSE.exe"), Fixtures.makePE(imports: ["d3d11.dll", "dxgi.dll"]))
+        let scan = try GameScan(executable: launcher)
+        XCTAssertEqual(scan.launchedGame?.lastPathComponent, "SkyrimSE.exe")
+        XCTAssertEqual(scan.recommendation.backend, .dxmt)
+    }
 }

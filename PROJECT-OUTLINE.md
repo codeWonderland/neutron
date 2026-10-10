@@ -100,8 +100,8 @@ Checklist: [docs/phase0-spike.md](docs/phase0-spike.md)
       `HKCU\...\Run` autostart, which `wineboot` would start without the backend's environment.
       The first self-update sometimes crashes in Steam's downloader; a second launch finishes)*
 - [x] Find installed games through `steamapps/appmanifest_*.acf`; launch by app ID
-      *(`neutron steam games` / `neutron steam launch <appid>`; tested with fixtures and an empty
-      real install, not yet with a signed-in account. Steam-launched games inherit Steam's
+      *(`neutron steam games` / `neutron steam launch <appid>`; verified with a signed-in account:
+      Deep Rock Galactic and Satisfactory launch through Steam. Steam-launched games inherit Steam's
       backend, so D3D12/D3D9 games need per-game backend handling here later)*
 - [ ] Stretch: read the native macOS Steam library and offer the Windows build of non-Mac games
 

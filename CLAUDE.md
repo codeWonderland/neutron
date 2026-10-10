@@ -18,7 +18,8 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
   10+; `WineCapabilities.swift` reads each Wine build's exports and the launcher falls back
   to DXMT. Unity games never get D3D12 from D3DMetal (no D3D11On12), so they go to DXMT.
 - 32-bit D3D9 works on wined3d (Irrlicht engine examples, real 3D scenes and HLSL; see the
-  spike doc). **Still unverified:** a commercial 32-bit/D3D9 game, D3D8, and launching games
+  spike doc). D3D8 device creation works (32-bit `d3dprobe 8`). **Still unverified:** a commercial
+  32-bit/D3D8/D3D9 game, and launching games
   through a signed-in Steam (`neutron steam` shows the sign-in window; nobody has signed in yet).
   Don't build on those assumptions until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
@@ -105,7 +106,7 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   (d3d11, dxgi, d3d10core) from the release's source tag with mingw-gcc; reuses the Wine build
   tree from `tools/wine-dxmt`. Builtin DLLs need the 17-byte "Wine builtin DLL\0" at 0x40.
 - `tools/d3dprobe/`: tiny D3D9/D3D11/D3D12 Windows program for checking a backend without a game
-  (modes `11`, `12`, `9`, `shared` textures, `timestamp`, `queryorder`, `calibrate` (UE5's GPU
+  (modes `11`, `12`, `9`, `8` (32-bit), `shared` textures, `timestamp`, `queryorder`, `calibrate` (UE5's GPU
   clock calibration, step by step), `crossproc` (a second process presents into this one's
   window, like Chromium's GPU process))
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake

@@ -116,6 +116,7 @@ public enum Doctor {
             let summary = "\(name): DXMT \(mark(caps.supports(.dxmt))), D3DMetal \(mark(caps.supports(.d3dmetal))), "
                 + "msync \(mark(caps.hasMsync)), \(wow64 ? "wow64" : "no wow64 (32-bit games may fail)")"
                 + ", cross-process (Steam UI) \(mark(caps.presentsCrossProcess))"
+                + ", 32-bit .NET \(mark(caps.runsDotNet32Bit))"
             checks.append(Check(caps.supports(.dxmt) ? .ok : .warning, summary,
                                 fix: caps.problem(with: .dxmt).map { "For DXMT: \($0)." }))
         }

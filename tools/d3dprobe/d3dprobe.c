@@ -14,6 +14,8 @@
 //                       queries must already have results (Windows completes queries in order)
 //   d3dprobe.exe crossproc  creates a window, then a second d3dprobe process presents red into it
 //                       through a D3D11 swap chain (what Chromium's GPU process does; Steam)
+//   d3dprobe.exe crossproc inset  the same into a 300x200 child window at (80,60) of a gray
+//                       window, to check where the other process's frames land
 //   d3dprobe.exe queryorder  polls timestamp and disjoint queries without waiting, frame by frame,
 //                       and counts timestamps that were ready before their disjoint query
 //
@@ -347,19 +349,21 @@ static int crossproc_child(HWND hwnd) {
 
 /* Parent: own a window (with a child window, as Chromium does), run the child against the child
  * window, and keep pumping messages meanwhile. */
-static int probe_crossproc(void) {
+static int probe_crossproc(BOOL inset) {
     WNDCLASSA wc = {0};
     wc.lpfnWndProc = crossproc_wndproc;
     wc.hInstance = GetModuleHandleA(NULL);
     wc.lpszClassName = "d3dprobe_crossproc";
-    wc.hbrBackground = (HBRUSH)GetStockObject(BLACK_BRUSH);
+    wc.hbrBackground = (HBRUSH)GetStockObject(inset ? GRAY_BRUSH : BLACK_BRUSH);
     RegisterClassA(&wc);
     HWND top = CreateWindowA("d3dprobe_crossproc", "d3dprobe crossproc", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
                              100, 100, 640, 400, NULL, NULL, wc.hInstance, NULL);
     RECT rc;
     GetClientRect(top, &rc);
-    HWND child = CreateWindowA("d3dprobe_crossproc", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
-                               0, 0, rc.right, rc.bottom, top, NULL, wc.hInstance, NULL);
+    HWND child = inset ? CreateWindowA("d3dprobe_crossproc", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+                                       80, 60, 300, 200, top, NULL, wc.hInstance, NULL)
+                       : CreateWindowA("d3dprobe_crossproc", NULL, WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN,
+                                       0, 0, rc.right, rc.bottom, top, NULL, wc.hInstance, NULL);
     char exe[MAX_PATH], cmd[MAX_PATH + 64];
     GetModuleFileNameA(NULL, exe, MAX_PATH);
     snprintf(cmd, sizeof(cmd), "\"%s\" crossproc-child %p", exe, (void *)child);
@@ -390,7 +394,8 @@ int main(int argc, char **argv) {
                : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
                : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
                : strcmp(mode, "calibrate") == 0 ? probe_calibrate()
-               : strcmp(mode, "crossproc") == 0 ? probe_crossproc() : probe_d3d11();
+               : strcmp(mode, "crossproc") == 0 ? probe_crossproc(argc > 2 && strcmp(argv[2], "inset") == 0)
+               : probe_d3d11();
     printf("modules:\n");
     print_module("d3d11.dll");
     print_module("d3d12.dll");

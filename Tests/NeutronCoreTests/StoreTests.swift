@@ -237,6 +237,13 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(plan.backend, .dxmt)
         XCTAssertEqual(plan.arguments, [exe.path, "-no-cef-sandbox", "-silent"])
         XCTAssertFalse(plan.notes.contains { $0.contains("steam_appid.txt") })
+        // Neither the fake Wine nor the fake DXMT can present cross-process.
+        XCTAssertTrue(plan.notes.contains { $0.contains("tools/wine-dxmt/build.sh and a DXMT built with tools/dxmt-patch") })
+        var patched = launcher
+        patched.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: false,
+                                                       presentsCrossProcess: true) }
+        try Data("; presenting remotely".utf8).write(to: dxmtRoot.appendingPathComponent("x86_64-windows/d3d11.dll"))
+        XCTAssertFalse(try patched.steamClientPlan(prefix: prefix).notes.contains { $0.contains("stay black") })
         XCTAssertEqual(try launcher.steamClientPlan(prefix: prefix, options: LaunchOptions(backend: .wined3d)).backend, .wined3d)
     }
 

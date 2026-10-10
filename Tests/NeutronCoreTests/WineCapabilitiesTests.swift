@@ -70,4 +70,20 @@ final class WineCapabilitiesTests: XCTestCase {
         let caps = WineCapabilities(wine: try makeWine(winemacExports: ["_macdrv_functions_v2"], ntdllExports: []))
         XCTAssertFalse(caps.exportsMacDriverFunctions)
     }
+
+    /// tools/wine-dxmt marks cross-process presentation with an export; DXMT's patched d3d11.dll
+    /// is recognized by the message it logs.
+    func testCrossProcessPresentation() throws {
+        XCTAssertFalse(WineCapabilities(wine: try makeWine(winemacExports: ["_macdrv_functions"], ntdllExports: [])).presentsCrossProcess)
+        XCTAssertTrue(WineCapabilities(wine: try makeWine(winemacExports: ["_macdrv_functions", "_macdrv_remote_metal_layers"],
+                                                          ntdllExports: [])).presentsCrossProcess)
+
+        let dxmt = root.appendingPathComponent("dxmt")
+        try Fixtures.write(dxmt.appendingPathComponent("x86_64-windows/d3d11.dll"), Data("MZ...CreateSwapChain".utf8))
+        let stock = Runtime(kind: .dxmt, version: "v0.80", path: dxmt)
+        XCTAssertFalse(stock.dxmtPresentsCrossProcess)
+        try Fixtures.write(dxmt.appendingPathComponent("x86_64-windows/d3d11.dll"), Data("MZ...; presenting remotely".utf8))
+        XCTAssertTrue(stock.dxmtPresentsCrossProcess)
+        XCTAssertFalse(Runtime(kind: .wine, version: "x", path: dxmt).dxmtPresentsCrossProcess)
+    }
 }

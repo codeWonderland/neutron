@@ -43,6 +43,14 @@ extension Launcher {
                                 arguments: SteamClient.clientArguments + arguments, options: options)
         // Steam.exe ships Steamworks itself; the steam_appid.txt advice is for games.
         plan.notes.removeAll { $0.contains("steam_appid.txt") }
+        if plan.backend == .dxmt, let composition = plan.composition {
+            var missing: [String] = []
+            if !capabilities(composition.wine).presentsCrossProcess { missing.append("a Wine built with tools/wine-dxmt/build.sh") }
+            if !composition.backend.dxmtPresentsCrossProcess { missing.append("a DXMT built with tools/dxmt-patch/build.sh") }
+            if !missing.isEmpty {
+                plan.notes.append("warning: Steam's window will stay black without cross-process presentation; it needs \(missing.joined(separator: " and "))")
+            }
+        }
         return plan
     }
 }

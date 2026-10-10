@@ -16,6 +16,8 @@
 //                       through a D3D11 swap chain (what Chromium's GPU process does; Steam)
 //   d3dprobe.exe crossproc inset  the same into a 300x200 child window at (80,60) of a gray
 //                       window, to check where the other process's frames land
+//   d3dprobe.exe crossproc resize  like inset, then after 1.5 s the child moves to (200,100) and
+//                       grows to 400x250; the presenting process resizes its buffers to match
 //   d3dprobe.exe queryorder  polls timestamp and disjoint queries without waiting, frame by frame,
 //                       and counts timestamps that were ready before their disjoint query
 //
@@ -339,7 +341,21 @@ static int crossproc_child(HWND hwnd) {
     IDXGISwapChain_GetBuffer(swapchain, 0, &IID_ID3D11Texture2D, (void **)&back);
     ID3D11Device_CreateRenderTargetView(device, (ID3D11Resource *)back, NULL, &rtv);
     float red[4] = {1, 0, 0, 1};
+    RECT size;
+    GetClientRect(hwnd, &size);
     for (int i = 0; i < 300; i++) {
+        RECT now;
+        GetClientRect(hwnd, &now);
+        if (now.right != size.right || now.bottom != size.bottom) {
+            /* What Chromium does when its window changes size. */
+            size = now;
+            ID3D11RenderTargetView_Release(rtv);
+            ID3D11Texture2D_Release(back);
+            hr = IDXGISwapChain_ResizeBuffers(swapchain, 0, now.right, now.bottom, DXGI_FORMAT_UNKNOWN, 0);
+            printf("child: ResizeBuffers %ldx%ld: 0x%08lx\n", now.right, now.bottom, (unsigned long)hr);
+            IDXGISwapChain_GetBuffer(swapchain, 0, &IID_ID3D11Texture2D, (void **)&back);
+            ID3D11Device_CreateRenderTargetView(device, (ID3D11Resource *)back, NULL, &rtv);
+        }
         ID3D11DeviceContext_ClearRenderTargetView(context, rtv, red);
         IDXGISwapChain_Present(swapchain, 1, 0);
         Sleep(16);
@@ -349,7 +365,7 @@ static int crossproc_child(HWND hwnd) {
 
 /* Parent: own a window (with a child window, as Chromium does), run the child against the child
  * window, and keep pumping messages meanwhile. */
-static int probe_crossproc(BOOL inset) {
+static int probe_crossproc(BOOL inset, BOOL resize) {
     WNDCLASSA wc = {0};
     wc.lpfnWndProc = crossproc_wndproc;
     wc.hInstance = GetModuleHandleA(NULL);
@@ -370,9 +386,15 @@ static int probe_crossproc(BOOL inset) {
     STARTUPINFOA si = {sizeof(si)};
     PROCESS_INFORMATION pi;
     if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, NULL, NULL, &si, &pi)) { printf("CreateProcess failed\n"); return 1; }
+    DWORD start = GetTickCount();
+    BOOL moved = FALSE;
     for (;;) {
         MSG msg;
         while (PeekMessageA(&msg, NULL, 0, 0, PM_REMOVE)) { TranslateMessage(&msg); DispatchMessageA(&msg); }
+        if (resize && !moved && GetTickCount() - start > 1500) {
+            SetWindowPos(child, NULL, 200, 100, 400, 250, SWP_NOZORDER | SWP_NOACTIVATE);
+            moved = TRUE;
+        }
         if (WaitForSingleObject(pi.hProcess, 10) == WAIT_OBJECT_0) break;
     }
     DWORD code = 1;
@@ -394,7 +416,8 @@ int main(int argc, char **argv) {
                : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
                : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
                : strcmp(mode, "calibrate") == 0 ? probe_calibrate()
-               : strcmp(mode, "crossproc") == 0 ? probe_crossproc(argc > 2 && strcmp(argv[2], "inset") == 0)
+               : strcmp(mode, "crossproc") == 0 ? probe_crossproc(argc > 2 && strcmp(argv[2], "full") != 0,
+                                                                  argc > 2 && strcmp(argv[2], "resize") == 0)
                : probe_d3d11();
     printf("modules:\n");
     print_module("d3d11.dll");

@@ -107,8 +107,8 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   tree from `tools/wine-dxmt`. Builtin DLLs need the 17-byte "Wine builtin DLL\0" at 0x40.
 - `tools/d3dprobe/`: tiny D3D9/D3D11/D3D12 Windows program for checking a backend without a game
   (modes `11`, `12`, `9`, `8` (32-bit), `shared` textures, `timestamp`, `queryorder`, `calibrate` (UE5's GPU
-  clock calibration, step by step), `crossproc [inset]` (a second process presents into this
-  one's (child) window, like Chromium's GPU process))
+  clock calibration, step by step), `crossproc [inset|resize]` (a second process presents into
+  this one's (child) window, like Chromium's GPU process))
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake
   "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU. It only creates a
   device, so it can't catch presentation problems; check those with a windowed game.

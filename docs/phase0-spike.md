@@ -176,8 +176,11 @@ hit a FIXME). Two patches wire DXMT to it:
   hosts it in the top-level window, filling it when the target covers it (Steam) and
   otherwise placed over the child window's area (`d3dprobe crossproc inset`: a 300×200
   child at (80,60) shows the frames exactly there). It also keeps hosting requests that
-  arrive before the owner's Cocoa window exists. (Placement is fixed at creation; a child
-  that later moves or resizes inside its window isn't tracked yet.)
+  arrive before the owner's Cocoa window exists. When the child moves or resizes, the owner
+  places the layer again (`macdrv_WindowPosChanged`), and the exported layer's bounds follow
+  the drawable size the renderer sets on `ResizeBuffers` (a `CAMetalLayer` subclass; KVO on
+  `drawableSize` doesn't fire). `d3dprobe crossproc resize` (child moves to (200,100) and grows
+  to 400×250, renderer calls `ResizeBuffers`): the frame follows exactly.
 - `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
 `d3dprobe crossproc` (one process owns a window with a child window, a second presents red
 into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,

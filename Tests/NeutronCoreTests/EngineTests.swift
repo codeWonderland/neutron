@@ -297,4 +297,20 @@ final class EngineTests: XCTestCase {
         let direct = try GameScan(executable: game.appendingPathComponent("Bin64/BeamNG.drive.x64.exe"))
         XCTAssertNil(direct.launchedGame)
     }
+
+    /// reg.exe in a prefix's system32 sits next to Wine's d3d11.dll and d3d12.dll; those
+    /// aren't its imports.
+    func testWineSystemToolsIgnoreSiblingDLLs() throws {
+        let system32 = root.appendingPathComponent("pfx/drive_c/windows/system32")
+        let reg = system32.appendingPathComponent("reg.exe")
+        try Fixtures.write(reg, Fixtures.makePE(imports: ["KERNEL32.dll", "advapi32.dll"]))
+        try Fixtures.write(system32.appendingPathComponent("d3d12.dll"), Fixtures.makePE(imports: ["dxgi.dll"]))
+        try Fixtures.write(system32.appendingPathComponent("d3d11.dll"), Fixtures.makePE(imports: ["dxgi.dll"]))
+        try Fixtures.write(system32.appendingPathComponent("tools/game.exe"), Fixtures.makePE(imports: ["d3d11.dll"]))
+        let scan = try GameScan(executable: reg)
+        XCTAssertEqual(scan.recommendation.backend, .wined3d)
+        XCTAssertNil(scan.launchedGame)
+        XCTAssertTrue(GameScan.isWindowsSystemDirectory(root.appendingPathComponent("pfx/drive_c/Windows/SysWOW64")))
+        XCTAssertFalse(GameScan.isWindowsSystemDirectory(root.appendingPathComponent("Games/system32")))
+    }
 }

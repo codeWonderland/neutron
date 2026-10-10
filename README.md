@@ -43,9 +43,11 @@ view, it seems like your Wine has no exported symbols needed by DXMT"*.
 `tools/wine-dxmt/build.sh` makes a patched copy of a Gcenx build. It rebuilds only
 `winemac.so` (with `winemac-dxmt.patch`, plus `winemac-flush-deadlock.patch`, which fixes a
 Wine 11 hang where Unreal games stay on their splash screen, and `winemac-remote-metal.patch`,
-which lets DXMT present into another process's window, e.g. Steam's UI) and `mfreadwrite.dll` (with
-`mfreadwrite-shared-samples.patch`, so Unity games' videos play under DXMT) from the
-matching Wine source, which takes a few minutes the first time:
+which lets DXMT present into another process's window, e.g. Steam's UI), `mfreadwrite.dll` (with
+`mfreadwrite-shared-samples.patch`, so Unity games' videos play under DXMT) and the 32- and 64-bit
+`d3dx9_*.dll` (with `d3dx9-check-version-debug.patch`, without which Unreal 3 games built with
+D3D9 debug info, like Dungeon Defenders 2, crash at startup) from the matching Wine source, which
+takes a few minutes the first time:
 
 ```sh
 brew install bison flex mingw-w64

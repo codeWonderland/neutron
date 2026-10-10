@@ -264,6 +264,33 @@ Updating the M1 from macOS 15.5 to 27.0.1 removed Rosetta 2: every x86_64 Wine f
 reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the Apple M1 (FL 11.0),
 32-bit D3D8 on wined3d creates and presents, and `neutron doctor` is all green.
 
+### Dungeon Defenders 2 (2026-10-10)
+
+Unreal Engine 3 (build 695.0), free to play, launched directly (`steam_appid.txt` 236110) while the
+signed-in Steam ran. It ships `Binaries/Win64/DunDefGame.exe` and a 32-bit `Binaries/Win32/DunDefGame.exe`;
+both import d3d9, d3dx9_43, d3d11 and dxgi, so auto-detect picks dxmt; the game itself starts on D3D9
+(window title "[DX9]") unless given `-d3d11`.
+
+**Every launch crashed at startup on stock Wine**, on both architectures and every backend: a write to
+address 3 (Unreal's deliberate crash for a failed check) after `D3DXCheckVersion(0x80000020, 43)`.
+The game was built with `D3D_DEBUG_INFO`, so it passes `D3D_SDK_VERSION | 0x80000000`; Wine's
+`D3DXCheckVersion` only accepts exactly 32 (its `Direct3DCreate9` accepts the same value).
+`tools/wine-dxmt/d3dx9-check-version-debug.patch` masks the bit (Wine `11.18-dxmt-v12`).
+
+| Build | Launch | Result on 11.18-dxmt-v12 |
+|---|---|---|
+| Win64 | auto (D3D9 → wined3d) | **Intro cinematic renders** ("Dungeon Defenders 2 [DX9]") |
+| Win64 | `-- -d3d11` (DXMT) | **3D menu scene renders**, "Found D3D11 adapter 0: Apple M1", texture pool 1280 MB, then the game's own online login ("Initializing Game Login…") |
+| Win32 | auto / `-d3d11` | **Not working.** Crashes or stalls before the D3DX check: in wined3d's 32-bit (WoW64) OpenGL adapter setup at the first `Direct3DCreate9` (minidump: access violation at 0x79ec1239 reading 0x2dc1, called from `opengl32.dll` ← `wined3d.dll`; once "nested exception on signal stack" in macOS code), or no log line at all within 4 min. Unreal probes D3D9 at startup even with `-d3d11`, so DXMT doesn't avoid it. See below |
+
+The 32-bit failure is intermittent and independent of the patch: across alternating runs, 11.18-dxmt-v11,
+v12 and v12 with Gcenx's (clang-built) 32-bit `d3dx9_43.dll` each sometimes reached the D3DX check
+(Texture pool logged, then the check's crash on unpatched DLLs), sometimes hit the OpenGL crash, and
+often logged nothing for 4 minutes (the M1 had 8 GB with ~4.2 GB in swap; startup is ~50 s of
+JIT-translated 32-bit code under Rosetta even when it works). No 32-bit run on v12 got past the
+OpenGL setup, so whether the patched check then passes there is unverified. **A commercial native
+32-bit D3D9 game is still unverified.**
+
 ### Deadzone Rogue 2 Playtest (2026-10-10)
 
 UE5 with the D3D12 Agility SDK, so auto-detect picks d3dmetal and falls back to dxmt (`-dx11`, stub

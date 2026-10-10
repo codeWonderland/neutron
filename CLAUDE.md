@@ -20,8 +20,10 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
 - 32-bit D3D9 works on wined3d (Irrlicht engine examples, real 3D scenes and HLSL; see the
   spike doc). D3D8 device creation works (32-bit `d3dprobe 8`). Launching through a signed-in
   Steam works (Deep Rock Galactic, Satisfactory; spike doc). 32-bit .NET/XNA games hang on Wine 10+
-  (Secrets of Grindea; runs on CrossOver 24; spike doc). **Still unverified:** a commercial native
-  32-bit D3D8/D3D9 game. Don't build on that until tested.
+  (Secrets of Grindea; runs on CrossOver 24; spike doc). Dungeon Defenders 2 (UE3) runs 64-bit
+  (D3D9 and D3D11/DXMT) after a d3dx9 patch; its 32-bit build crashes in wined3d's WoW64 OpenGL
+  setup (spike doc). **Still unverified:** a commercial native 32-bit D3D8/D3D9 game. Don't build
+  on that until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
   claim a game works unless it was actually run.
@@ -101,8 +103,9 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   and prints PASS when the window isn't black (SPLASH when it's untitled and under 640×360: a
   launcher splash that never gave way to the game). Use it to check games instead of guessing.
 - `tools/wine-dxmt/`: Wine patches + script that make a DXMT-capable copy of a macOS Wine
-  build by rebuilding only `winemac.so` and `mfreadwrite.dll` (needs `brew install bison
-  flex mingw-w64`). Every `*.patch` there is applied, in name order.
+  build by rebuilding only `winemac.so`, `mfreadwrite.dll` and the 32/64-bit `d3dx9_*.dll` (needs
+  `brew install bison flex mingw-w64`). Every `*.patch` there is applied once, in name order;
+  `.neutron-patches` in the source tree records which.
 - `tools/dxmt-patch/`: DXMT patches + script that rebuild only DXMT's Windows-side DLLs
   (d3d11, dxgi, d3d10core) from the release's source tag with mingw-gcc; reuses the Wine build
   tree from `tools/wine-dxmt`. Builtin DLLs need the 17-byte "Wine builtin DLL\0" at 0x40.

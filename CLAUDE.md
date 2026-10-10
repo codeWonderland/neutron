@@ -17,8 +17,10 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
 - D3DMetal is verified on a CrossOver-based Wine 9 (Sikarugir CX 24) but can't run on Wine
   10+; `WineCapabilities.swift` reads each Wine build's exports and the launcher falls back
   to DXMT. Unity games never get D3D12 from D3DMetal (no D3D11On12), so they go to DXMT.
-- **Still unverified:** D3D9 and 32-bit games; Steam-integrated games need the Steam client
-  (Phase 3). Don't build on those assumptions until tested.
+- 32-bit D3D9 works on wined3d (Irrlicht engine examples, real 3D scenes and HLSL; see the
+  spike doc). **Still unverified:** a commercial 32-bit/D3D9 game, D3D8, and launching games
+  through a signed-in Steam (`neutron steam` shows the sign-in window; nobody has signed in yet).
+  Don't build on those assumptions until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
   claim a game works unless it was actually run.

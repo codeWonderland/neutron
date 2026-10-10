@@ -10,7 +10,7 @@ struct SteamCommand: ParsableCommand {
         Steam's UI needs DXMT and a Wine built with tools/wine-dxmt plus a DXMT built with \
         tools/dxmt-patch (cross-process presentation); with other builds its window stays black.
         """,
-        subcommands: [Run.self, Install.self, Games.self, Launch.self],
+        subcommands: [Run.self, Install.self, Games.self, Launch.self, Import.self],
         defaultSubcommand: Run.self
     )
 
@@ -143,6 +143,41 @@ struct SteamCommand: ParsableCommand {
             if dryRun { return printPlan(plan) }
             _ = try Env.launcher.run(Env.launcher.steamRemoveAutostartPlan(prefix: prefix))
             try execute(plan)
+        }
+    }
+
+    struct Import: ParsableCommand {
+        static let configuration = CommandConfiguration(
+            abstract: "Add a local copy of a game to Steam's library instead of downloading it.",
+            discussion: """
+            Clones the folder (free on APFS) into the prefix's steamapps/common and writes its app \
+            manifest. Restart Steam (`neutron steam`) and it verifies the files and fetches only \
+            what differs, e.g. a copy taken from another machine's Steam library.
+            """
+        )
+
+        @Argument(help: "The game's folder (named like its Steam install folder).")
+        var folder: String
+
+        @Option(help: "Steam app ID (the number in the store page URL).")
+        var appid: String
+
+        @Option(help: "Name to show until Steam fills it in (default: the folder name).")
+        var name: String?
+
+        @Option(name: .shortAndLong, help: "Prefix Steam is installed in.")
+        var prefix = "steam"
+
+        func run() throws {
+            let prefix = try Env.prefixes.get(self.prefix)
+            guard SteamClient.isInstalled(in: prefix) else {
+                throw ValidationError("Steam isn't installed in '\(self.prefix)'. Run `neutron steam install -p \(self.prefix)`.")
+            }
+            let steamRoot = SteamClient.executable(in: prefix).deletingLastPathComponent()
+            let installed = try SteamLibrary.importGame(from: URL(fileURLWithPath: folder), appID: appid, name: name,
+                                                        steamRoot: steamRoot)
+            print("Imported to \(installed.path).")
+            print("Restart Steam (`neutron kill -p \(self.prefix)`, then `neutron steam -p \(self.prefix)`) to verify and update it.")
         }
     }
 }

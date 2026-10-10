@@ -200,7 +200,7 @@ every time; the script-built one doesn't, so always use `tools/wine-dxmt/build.s
 
 Steam for Windows (`neutron steam install`, `neutron steam`) on Wine 11.18 built by
 `tools/wine-dxmt` (v11) and DXMT v0.80 built by `tools/dxmt-patch`, signed in by the user.
-Games were added without re-downloading: an APFS clone of the local copy in
+Games were added without re-downloading (now `neutron steam import`): an APFS clone of the local copy in
 `steamapps/common/<installdir>` plus a minimal `appmanifest_<appid>.acf` with
 `"StateFlags" "1026"`; after a Steam restart it verified the files and fetched only what
 differed (Deep Rock Galactic: nothing, 90 s; Satisfactory: the 13 GB of `.pdb` files the local
@@ -209,6 +209,7 @@ copy lacked, ~5 min). `neutron steam games` listed both (plus Steamworks Common 
 | Game | Launched with | Result |
 |---|---|---|
 | Deep Rock Galactic (UE4) | `neutron steam launch 548430` | Title screen ("Press any key to continue", v1.40) in ~40 s; past the "Waiting for Steam" stop |
+| Timberborn (Unity 6) | `neutron steam import ~/neutron-games/full/Timberborn --appid 1062090`, Steam restart (verified in 75 s, no download), `neutron steam launch 1062090` | Intro video plays (GStreamer path works under Steam too) |
 | Satisfactory (UE5, 1.2.4.0) | `neutron steam launch 526870` | Main menu, signed in ("Successfully logged in as [Steam:1 …]" via EOS); D3D12 fails (no Agility SDK runtime) and it falls back to D3D11 on the patched DXMT by itself |
 
 ### Diagnoses (2026-10-09)

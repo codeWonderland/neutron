@@ -182,3 +182,53 @@ public enum SteamLibrary {
         return games.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 }
+
+extension SteamLibrary {
+    /// Adds an existing copy of a game (e.g. from another machine's Steam library) to Steam's own
+    /// library so it doesn't have to be downloaded again: the folder is cloned (free on APFS) to
+    /// `steamapps/common/<folder name>` and an `appmanifest_<appid>.acf` marks it as needing an
+    /// update, so the next time Steam starts it verifies the files and fetches only what differs.
+    @discardableResult
+    public static func importGame(from source: URL, appID: String, name: String? = nil, steamRoot: URL) throws -> URL {
+        guard !appID.isEmpty, appID.allSatisfy(\.isNumber) else { throw NeutronError.invalidName(appID) }
+        let fm = FileManager.default
+        guard fm.fileExists(atPath: source.path) else { throw NeutronError.fileNotFound(source.path) }
+        let steamapps = steamRoot.appendingPathComponent("steamapps")
+        let installdir = source.standardizedFileURL.lastPathComponent
+        let destination = steamapps.appendingPathComponent("common").appendingPathComponent(installdir)
+        let manifest = steamapps.appendingPathComponent("appmanifest_\(appID).acf")
+        guard !fm.fileExists(atPath: destination.path), !fm.fileExists(atPath: manifest.path) else {
+            throw NeutronError.steamGameExists(appID: appID, path: destination.path)
+        }
+        try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try fm.copyItem(at: source, to: destination)  // clonefile on APFS
+        func quoted(_ s: String) -> String {
+            "\"" + s.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+        }
+        let text = """
+        "AppState"
+        {
+        \t"appid"\t\t\(quoted(appID))
+        \t"Universe"\t\t"1"
+        \t"name"\t\t\(quoted(name ?? installdir))
+        \t"StateFlags"\t\t"1026"
+        \t"installdir"\t\t\(quoted(installdir))
+        \t"LastUpdated"\t\t"0"
+        \t"SizeOnDisk"\t\t"0"
+        \t"buildid"\t\t"0"
+        \t"BytesToDownload"\t\t"0"
+        \t"BytesDownloaded"\t\t"0"
+        \t"AutoUpdateBehavior"\t\t"0"
+        \t"UserConfig"
+        \t{
+        \t}
+        \t"MountedDepots"
+        \t{
+        \t}
+        }
+
+        """
+        try Data(text.utf8).write(to: manifest)
+        return destination
+    }
+}

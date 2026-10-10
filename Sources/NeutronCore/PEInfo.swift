@@ -193,9 +193,12 @@ public struct GameScan: Sendable {
         executable = try PEInfo(contentsOf: url)
         engine = EngineDetection.detect(executable: url)
         let renderer = engine?.renderer ?? url
-        var all = GameScan.imports(of: renderer, known: renderer == url ? executable : nil)
+        // Wine's own tools (reg.exe, regedit.exe) sit next to every builtin DLL, d3d11 and
+        // d3d12 included, and nothing below them is a game.
+        let systemTool = GameScan.isWindowsSystemDirectory(url.deletingLastPathComponent())
+        var all = systemTool ? executable.imports : GameScan.imports(of: renderer, known: renderer == url ? executable : nil)
         var launched: URL?
-        if engine == nil, !GameScan.hasGraphics(all), let game = GameScan.launchedGame(by: url) {
+        if engine == nil, !systemTool, !GameScan.hasGraphics(all), let game = GameScan.launchedGame(by: url) {
             launched = game.url
             all.formUnion(game.imports)
         }
@@ -216,6 +219,12 @@ public struct GameScan: Sendable {
             if let info = try? PEInfo(contentsOf: dll) { all.formUnion(info.imports) }
         }
         return all
+    }
+
+    /// `.../windows/system32` or `.../windows/syswow64`, as in a Wine prefix.
+    static func isWindowsSystemDirectory(_ directory: URL) -> Bool {
+        let parts = directory.standardizedFileURL.pathComponents.suffix(2).map { $0.lowercased() }
+        return parts.count == 2 && parts[0] == "windows" && (parts[1] == "system32" || parts[1] == "syswow64")
     }
 
     static func hasGraphics(_ imports: Set<String>) -> Bool {

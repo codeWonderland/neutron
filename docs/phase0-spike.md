@@ -643,7 +643,11 @@ Failures:
   GStreamer.framework (x86_64, 1.28) removes the error, but the game still hangs there.
 - **Deep Rock Survivor** (Unity 6000.4): D3D11 on DXMT; black after `SteamAPI_Init() failed`
   in its platform-service code. Likely needs the Steam client.
-- **Legends of Idleon**: Electron 11 (Chromium 87); exits. See Electron below.
+- **Legends of Idleon**: Electron 11 (Chromium 87); exits. See Electron below. (2026-10-11: on
+  DXMT v7, a debug build, its GPU process aborted on a libstdc++ assertion in
+  `shared_mutex::lock_shared`; `tools/dxmt-patch/build.sh` built debug `-O0` builds, where GCC 15+
+  enables those assertions. It now builds release like DXMT itself, and on v8 Idleon's title screen
+  renders, checked from frame dumps.)
 - **SUPERHOT VR**: needs a VR runtime (expected).
 - **Novus Orbis**: still on the "Made with Unity" splash at 70 s (renders; slow start).
 - A game about sucking … Demo (Unity 6000.3): renders ghost sprites on a black scene at 60 s;
@@ -692,10 +696,10 @@ files to see what happens before they need data (`~/neutron-games/scripts/bintra
   - `-- -gfx dx11` with `WINEDLLOVERRIDES=d3dcompiler_47=n` (the shipped DLL): **0 shader errors, no
     crash, "ui finished loading"**. A DXMT frame dump shows its 3D scene (containers, the bridge)
     under the first-run "Enable Online features?" dialog, signed in to Steam.
-  Workaround for the Phase 2 database: `-gfx dx11` + native `d3dcompiler_47`. Candidate default
-  (not done): prefer a `d3dcompiler_47.dll` a game ships, as Windows does; only Legends of Idleon,
-  Dungeon Defenders 2 and Desktop Survivors 98 ship one at the top level, and Idleon (ANGLE) works
-  with the builtin, so it needs a visual check before changing.
+  Workaround for the Phase 2 database: `-gfx dx11`. **Now the default:** Neutron uses a
+  `d3dcompiler_47.dll` that ships next to the game (`d3dcompiler_47=n,b`), as Windows does.
+  Checked first with frame dumps: Legends of Idleon (ANGLE) renders its title screen identically
+  with the builtin and with its own copy.
 - **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3** (UE4 → DXMT `-dx11`): still
   running after 40 s; neither relaunches through Steam.
 

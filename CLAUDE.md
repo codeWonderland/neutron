@@ -57,6 +57,8 @@ every push and PR. There is no linter configured.
    `d3dmetal` (dxmt fallback if d3d11 is imported too; an exe importing none is treated as a
    launcher and the game exe next to or below it decides), d3d10/11/dxgi → `dxmt`, else `wined3d`. On backends without D3D12, engine
    Unreal stubs are replaced by their Shipping exe at launch (`--launch-stub` to opt out).
+   A `d3dcompiler_47.dll` next to the
+   target exe is used instead of Wine's builtin (`d3dcompiler_47=n,b`), as on Windows.
    Unreal games get `-dx11` unless `--no-engine-args`; Unity gets no flag (it falls back to
    D3D11 itself, and forcing breaks builds without D3D11 shaders).
 2. **Runtimes**: each backend's `requiredRuntime` (dxmt → `dxmt`, d3dmetal → `gptk`) and Wine

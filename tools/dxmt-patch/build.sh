@@ -81,6 +81,11 @@ if [ ! -f "$build/build.ninja" ]; then
     -Dnative_llvm_path="$work/no-llvm" > "$work/configure.log" 2>&1 \
     || { echo "error: configure failed; see $work/configure.log" >&2; exit 1; }
 fi
+# A release build, like DXMT's own: meson defaults to debug (-O0), where GCC 15+ enables
+# libstdc++ assertions that abort (Legends of Idleon: shared_mutex lock_shared). Also fixes
+# trees configured by earlier versions of this script.
+meson configure "$build" -Dbuildtype=release >> "$work/configure.log" 2>&1 \
+  || { echo "error: configure failed; see $work/configure.log" >&2; exit 1; }
 echo "Building d3d11.dll, dxgi.dll and d3d10core.dll…"
 ninja -C "$build" src/d3d11/d3d11.dll src/dxgi/dxgi.dll src/d3d10/d3d10core.dll > "$work/make.log" 2>&1 \
   || { echo "error: build failed; see $work/make.log" >&2; exit 1; }

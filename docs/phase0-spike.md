@@ -648,9 +648,22 @@ Valheim, Megabonk, Barony and others.
 
 So far, across 52 launched games, 39 reach a rendered window on the patched Gcenx 11.18 +
 DXMT (9 of the first 14, 27 of the 32-game batch, 3 of 6 large games). The biggest failure
-class is the Steam client (7: CATR, ASTRONEER, Needle In A Haystack, Legends of Idleon,
-Deep Rock Survivor, Deadzone Rogue 2, Skyrim SE), then macOS OpenGL limits, missing
-DirectComposition, media playback (Timberborn) and VR.
+class was the Steam client (CATR, ASTRONEER, Needle In A Haystack, Legends of Idleon, Deep Rock
+Survivor), since fixed by launching through a signed-in Steam ("Games through a signed-in Steam"
+above); Skyrim SE then needed an FAudio backport and a DXMT fix (its own section), and Deadzone
+Rogue 2's playtest isn't available to the test account. The rest are macOS OpenGL limits,
+missing DirectComposition, media playback (Timberborn) and VR.
+
+**Library coverage check (2026-10-11):** of the 38 desktop-library folders without a recorded
+result, 34 are Linux builds (no Windows exe; Vampire Survivors' `VampireSurvivors.exe` is an ELF
+binary, which `neutron detect` reports as "Not a Windows executable"). The other four, on Wine
+`11.18-dxmt-v15` + DXMT `dxmt-v0.80-v6` in a fresh prefix with `steam_appid.txt`:
+
+| Game | Detected | Result |
+|---|---|---|
+| Grass Chopper Demo (Unity 6000.3) | dxmt | Running after 60 s with a 1882×1058 game window; frames not checked (the screen had locked) |
+| Gridle Demo (Unity 2022.3) | dxmt | Running after 60 s with a 1882×1090 game window; frames not checked (screen locked) |
+| Resonite (.NET host + Unity 2019.4 renderer) | wined3d (host) | Crashes at startup: Resonite detects Wine (`IsWine` via `wine_get_version`) and then uses its Linux-host IPC (`/dev/shm/.cloudtoid/interprocess`, `shmbridge.dll.so`), which macOS doesn't have (`UnauthorizedAccessException` on `Z:\dev\shm`). Game-specific; needs a way to hide Wine from it (Phase 2 database) |
 
 **D3D12 on D3DMetal (Unreal 5):** A Game About Digging A Hole on the CrossOver 24 engine with
 GPTK 3.0-3 renders its menu through D3D12 with `-dx12` (`d3d12.dll` loaded). Without a flag

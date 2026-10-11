@@ -1,0 +1,92 @@
+--- a/src/d3d11/d3d11_swapchain.cpp
++++ b/src/d3d11/d3d11_swapchain.cpp
+@@ -23,6 +23,8 @@
+ #include "dxmt_info.hpp"
+ #include "dxmt_presenter.hpp"
+ #include <atomic>
++#include <vector>
++#include <cstdio>
+ #include <cfloat>
+ #include <format>
+ 
+@@ -726,6 +728,62 @@
+     }
+     return SyncFrameState();
+   };
++
++  /* DXMT_DUMP_FRAMES_EVERY=N and DXMT_DUMP_FRAMES_DIR=<Windows path>: writes every Nth
++   * presented frame (up to 4) as a PPM file, so rendering can be checked without capturing
++   * the screen (a locked Mac, CI). 8-bit RGBA/BGRA back buffers only. */
++  void DumpFrameIfRequested() {
++    static const UINT every = std::atoi(env::getEnvVar("DXMT_DUMP_FRAMES_EVERY").c_str());
++    static const std::string dir = env::getEnvVar("DXMT_DUMP_FRAMES_DIR");
++    if (!every || dir.empty() || !backbuffer_ || dumped_frames_ >= 4 || ++dump_counter_ % every)
++      return;
++    DXGI_FORMAT format = backbuffer_desc_.Format;
++    bool bgra = format == DXGI_FORMAT_B8G8R8A8_UNORM || format == DXGI_FORMAT_B8G8R8A8_UNORM_SRGB;
++    bool rgba = format == DXGI_FORMAT_R8G8B8A8_UNORM || format == DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
++    if (!bgra && !rgba) {
++      WARN("DXMT_DUMP_FRAMES: unsupported back buffer format ", format);
++      dumped_frames_ = 4;
++      return;
++    }
++    Com<ID3D11Device> device;
++    Com<ID3D11DeviceContext> context;
++    Com<ID3D11Texture2D> staging;
++    if (FAILED(device_->QueryInterface(IID_PPV_ARGS(&device)))) return;
++    device->GetImmediateContext(&context);
++    D3D11_TEXTURE2D_DESC desc = {};
++    desc.Width = backbuffer_desc_.Width;
++    desc.Height = backbuffer_desc_.Height;
++    desc.MipLevels = 1;
++    desc.ArraySize = 1;
++    desc.Format = format;
++    desc.SampleDesc.Count = 1;
++    desc.Usage = D3D11_USAGE_STAGING;
++    desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
++    if (FAILED(device->CreateTexture2D(&desc, nullptr, &staging))) return;
++    Com<ID3D11Resource> source;
++    if (FAILED(backbuffer_->QueryInterface(IID_PPV_ARGS(&source)))) return;
++    context->CopyResource(staging.ptr(), source.ptr());
++    D3D11_MAPPED_SUBRESOURCE mapped;
++    if (FAILED(context->Map(staging.ptr(), 0, D3D11_MAP_READ, 0, &mapped))) return;
++    std::string path = str::format(dir, "\\dxmt-frame-", dump_counter_, ".ppm");
++    if (FILE *f = fopen(path.c_str(), "wb")) {
++      fprintf(f, "P6\n%u %u\n255\n", desc.Width, desc.Height);
++      std::vector<uint8_t> row(desc.Width * 3);
++      for (UINT y = 0; y < desc.Height; y++) {
++        const uint8_t *src = (const uint8_t *)mapped.pData + y * mapped.RowPitch;
++        for (UINT x = 0; x < desc.Width; x++) {
++          row[x * 3 + 0] = src[x * 4 + (bgra ? 2 : 0)];
++          row[x * 3 + 1] = src[x * 4 + 1];
++          row[x * 3 + 2] = src[x * 4 + (bgra ? 0 : 2)];
++        }
++        fwrite(row.data(), 1, row.size(), f);
++      }
++      fclose(f);
++      WARN("DXMT_DUMP_FRAMES: wrote ", path);
++    }
++    context->Unmap(staging.ptr(), 0);
++    dumped_frames_++;
++  }
+ 
+   HRESULT
+   STDMETHODCALLTYPE
+@@ -733,6 +791,8 @@
+            const DXGI_PRESENT_PARAMETERS *pPresentParameters) final {
+     if (SyncInterval > 4)
+       return DXGI_ERROR_INVALID_CALL;
++    if (!(PresentFlags & DXGI_PRESENT_TEST))
++      DumpFrameIfRequested();
+ 
+     HRESULT hr = S_OK;
+     bool window_minimized = wsi::isMinimized(hWnd);
+@@ -1062,6 +1122,8 @@
+   DXGI_SWAP_CHAIN_FULLSCREEN_DESC fullscreen_desc_;
+   D3D11_TEXTURE2D_DESC1 backbuffer_desc_;
+   IMTLD3D11DeviceContext* device_context_;
++  UINT dump_counter_ = 0;
++  UINT dumped_frames_ = 0;
+   Com<D3D11ResourceCommon, false> backbuffer_;
+   HANDLE present_semaphore_;
+   std::unique_ptr<CpuFence> frame_latency_fence_;

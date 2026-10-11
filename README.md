@@ -78,7 +78,9 @@ DXMT v0.80 fills timestamps in slightly later, so the engine asserts ("unset
 TOptional<FTimestampCalibration>"). `tools/dxmt-patch/build.sh` rebuilds DXMT's `d3d11.dll`,
 `dxgi.dll` and `d3d10core.dll` from the matching source with the fix, plus cross-process swap
 chains and `destroyed-object-release.patch` (an app's extra `Release` on a destroyed resource or
-view returns 0 as on Windows instead of aborting; Skyrim Special Edition needs it). It takes about
+view returns 0 as on Windows instead of aborting; Skyrim Special Edition needs it) and
+`frame-dump.patch` (optional frame dumps for checking rendering without the screen; off unless
+`DXMT_DUMP_FRAMES_EVERY` is set). It takes about
 a minute and needs the Wine build tree that `tools/wine-dxmt/build.sh` leaves behind, plus Xcode's
 Metal Toolchain for DXMT's shaders (`xcodebuild -downloadComponent MetalToolchain`; Xcode 26 and
 later no longer include it):

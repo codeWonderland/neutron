@@ -384,7 +384,10 @@ the signed-in prefix its UI websocket connection is rejected, it never logs on, 
 Generating wow64cpu's 32→64 thunks as `push cs; push target; lret` instead of `ljmp *m16:32` (same
 stack effect) didn't fix it: `adapterloop` still failed 3 of 12 runs, some dying silently. The mode
 seems to be lost around the transitions under Rosetta, not in the jump encoding, so there's no
-Wine-side workaround here yet; the upstream report draft has the details.
+Wine-side workaround here yet; the upstream report draft has the details. wined3d's Vulkan
+renderer (`WINE_D3D_CONFIG=renderer=vulkan`, MoltenVK) isn't one either: in 32-bit it enumerates
+the real Apple M1 but never creates a D3D9 device (MoltenVK rejects wined3d's external-memory
+buffers, `VK_ERROR_FEATURE_NOT_PRESENT`), and `adapterloop` still failed 2 of 8 runs.
 
 ### Deadzone Rogue 2 Playtest (2026-10-10)
 

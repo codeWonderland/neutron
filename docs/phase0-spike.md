@@ -376,7 +376,9 @@ our patches (crashes at the same address, or the thread stuck); 64-bit: 0 of 4; 
 (Wine 9): 0 of 8**. A stress of 1M+ handled access violations plus system calls on other threads
 doesn't reproduce it, so Apple's (translated) OpenGL setup seems to be the trigger. Neutron now
 warns when launching any 32-bit program on a Wine 10+ build (`reliable 32-bit no` in `doctor`),
-pointing at a CrossOver-based Wine 9.
+pointing at a CrossOver-based Wine 9. DD2's 32-bit build couldn't be tried on CrossOver 24: it quits
+without a Steam client, and the current Steam client doesn't run on that Wine 9 (in an APFS clone of
+the signed-in prefix its UI websocket connection is rejected, it never logs on, and it exits).
 
 ### Deadzone Rogue 2 Playtest (2026-10-10)
 

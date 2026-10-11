@@ -15,6 +15,9 @@
 #   d3dx9-check-version-debug.patch  d3dx9_24..43.dll (32- and 64-bit) accept the D3D_DEBUG_INFO
 #                                    SDK version (32 | 0x80000000) in D3DXCheckVersion. Unreal 3
 #                                    games built with it (Dungeon Defenders 2) crash at startup.
+#   faudio-wma-bytes-requested.patch xaudio2_*.dll and xactengine*.dll (32- and 64-bit): upstream
+#                                    FAudio ee018363, no divide by zero for xWMA voices with an
+#                                    OnVoiceProcessingPassStart callback (Skyrim SE crashed).
 #
 #   tools/wine-dxmt/build.sh <wine-root> <output-dir>
 #
@@ -86,13 +89,14 @@ if [ ! -f "$build/Makefile" ] || ! grep -q "^PE_ARCHS = *i386" "$build/Makefile"
     --without-v4l2 --without-wayland > configure.log 2>&1) \
     || { echo "error: configure failed; see $build/configure.log" >&2; exit 1; }
 fi
-d3dx9_targets=""
-for d in "$src"/dlls/d3dx9_*; do
-  n=$(basename "$d")
-  d3dx9_targets="$d3dx9_targets dlls/$n/i386-windows/$n.dll dlls/$n/x86_64-windows/$n.dll"
+# Windows-side DLLs rebuilt for both architectures.
+pe_dlls=$(cd "$src/dlls" && ls -d d3dx9_* xaudio2_* xactengine*)
+pe_targets=""
+for n in $pe_dlls; do
+  pe_targets="$pe_targets dlls/$n/i386-windows/$n.dll dlls/$n/x86_64-windows/$n.dll"
 done
-echo "Building winemac.so, mfreadwrite.dll and d3dx9_*.dll…"
-make -C "$build" -j"$(sysctl -n hw.ncpu)" dlls/winemac.drv/winemac.so dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll $d3dx9_targets \
+echo "Building winemac.so, mfreadwrite.dll, d3dx9_*, xaudio2_* and xactengine*…"
+make -C "$build" -j"$(sysctl -n hw.ncpu)" dlls/winemac.drv/winemac.so dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll $pe_targets \
   > "$build/make.log" 2>&1 || { echo "error: build failed; see $build/make.log" >&2; exit 1; }
 nm -gU "$build/dlls/winemac.drv/winemac.so" | grep -q " _macdrv_functions$" \
   || { echo "error: macdrv_functions is not exported" >&2; exit 1; }
@@ -101,8 +105,7 @@ cp -c -R "$wine_root" "$output"
 cp "$build/dlls/winemac.drv/winemac.so" "$output/lib/wine/x86_64-unix/winemac.so"
 x86_64-w64-mingw32-strip -o "$output/lib/wine/x86_64-windows/mfreadwrite.dll" \
   "$build/dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll"
-for d in "$src"/dlls/d3dx9_*; do
-  n=$(basename "$d")
+for n in $pe_dlls; do
   i686-w64-mingw32-strip -o "$output/lib/wine/i386-windows/$n.dll" "$build/dlls/$n/i386-windows/$n.dll"
   x86_64-w64-mingw32-strip -o "$output/lib/wine/x86_64-windows/$n.dll" "$build/dlls/$n/x86_64-windows/$n.dll"
 done

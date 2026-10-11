@@ -284,6 +284,42 @@ Updating the M1 from macOS 15.5 to 27.0.1 removed Rosetta 2: every x86_64 Wine f
 reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the Apple M1 (FL 11.0),
 32-bit D3D8 on wined3d creates and presents, and `neutron doctor` is all green.
 
+### Skyrim Special Edition (2026-10-10)
+
+Creation Engine, 64-bit D3D11 (`SkyrimSE.exe` imports d3d11, d3dx9_42, dxgi). Steam starts
+`SkyrimSELauncher.exe`, which imports no graphics APIs and starts `SkyrimSE.exe` from the same
+folder; detection now follows launchers to a game exe next to them too (it was wined3d → dxmt).
+Steam asked for Bethesda's EULA before the first launch (accepted with the user's go-ahead).
+
+Three problems, in order:
+
+1. **Divide by zero in `xaudio2_7.dll`** (`c0000094`, FAudio `FAudio_INTERNAL_GetBytesRequested`):
+   it divides by `samples_per_block` before its xWMA early return, and xWMA voices have none. Hit
+   by games with an `OnVoiceProcessingPassStart` callback on an xWMA voice. Upstream FAudio fixed
+   it on 2026-09-26 (ee018363); Wine 11.18 bundles an older FAudio.
+   `tools/wine-dxmt/faudio-wma-bytes-requested.patch` backports it (Wine `11.18-dxmt-v15`).
+2. **"Pure virtual function called" in DXMT's `d3d11.dll`.** A diagnostic DXMT build (backtrace
+   and `this`'s vtable in `__cxa_pure_virtual`, then every AddRef/Release logged) showed Skyrim
+   creating a texture (one reference) and its SRV, then releasing each field of that struct
+   twice. Windows and DXVK tolerate the extra `Release` on the freed object (its vtable still
+   points at a concrete `Release`); in DXMT the vtable left after destruction is the abstract
+   `D3D11ResourceCommon`/`D3D11ShaderResourceView` base, so the call aborts. DXVK holds view →
+   resource references privately too, so the counts match DXVK's; only the stray call differs.
+   `tools/dxmt-patch/destroyed-object-release.patch` gives those bases no-op `AddRef`/`Release`
+   (live objects use `ComObject`'s overrides). DXMT `dxmt-v0.80-v6`.
+3. Building DXMT on macOS 27 / Xcode 26+ needs the Metal Toolchain component
+   (`xcodebuild -downloadComponent MetalToolchain`, 839 MB); `tools/dxmt-patch/build.sh` also
+   accepts the release's wrapper folder now.
+
+**Result:** main menu (New / Load / Creations / Credits / Quit, "Skyrim Updates" panel),
+full-screen 1920×1080 on DXMT, with Wine `11.18-dxmt-v15` + DXMT `dxmt-v0.80-v6`, launched as
+`SkyrimSE.exe` with `steam_appid.txt` while the signed-in Steam ran. From Steam
+(`neutron steam launch 489830`) the launcher renders; before the fixes, its PLAY started the game,
+which exited within 14 s. PLAY wasn't clicked again after the fixes (the launcher sat behind
+Steam's window, and posted Win32 clicks don't reach its button), so the full Steam path is
+unverified. d3dprobe `11`, `timestamp`,
+`calibrate`, `queryorder` and `crossproc` plain/inset/resize unchanged on v15 + v6.
+
 ### Dungeon Defenders 2 (2026-10-10)
 
 Unreal Engine 3 (build 695.0), free to play, launched directly (`steam_appid.txt` 236110) while the

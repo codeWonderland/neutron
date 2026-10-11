@@ -46,8 +46,10 @@ Wine 11 hang where Unreal games stay on their splash screen, and `winemac-remote
 which lets DXMT present into another process's window, e.g. Steam's UI), `mfreadwrite.dll` (with
 `mfreadwrite-shared-samples.patch`, so Unity games' videos play under DXMT) and the 32- and 64-bit
 `d3dx9_*.dll` (with `d3dx9-check-version-debug.patch`, without which Unreal 3 games built with
-D3D9 debug info, like Dungeon Defenders 2, crash at startup) from the matching Wine source, which
-takes a few minutes the first time:
+D3D9 debug info, like Dungeon Defenders 2, crash at startup), and the 32- and 64-bit `xaudio2_*` and
+`xactengine*` DLLs (with `faudio-wma-bytes-requested.patch`, upstream FAudio's fix for a divide by
+zero on xWMA audio that Skyrim Special Edition hits) from the matching Wine source, which takes a
+few minutes the first time:
 
 ```sh
 brew install bison flex mingw-w64
@@ -72,8 +74,12 @@ Unreal Engine 5 calibrates its GPU clock at startup by ending a timestamp query 
 query, waiting for the event, then reading the timestamp. Windows completes queries in order;
 DXMT v0.80 fills timestamps in slightly later, so the engine asserts ("unset
 TOptional<FTimestampCalibration>"). `tools/dxmt-patch/build.sh` rebuilds DXMT's `d3d11.dll`,
-`dxgi.dll` and `d3d10core.dll` from the matching source with the fix (about a minute; needs the
-Wine build tree that `tools/wine-dxmt/build.sh` leaves behind):
+`dxgi.dll` and `d3d10core.dll` from the matching source with the fix, plus cross-process swap
+chains and `destroyed-object-release.patch` (an app's extra `Release` on a destroyed resource or
+view returns 0 as on Windows instead of aborting; Skyrim Special Edition needs it). It takes about
+a minute and needs the Wine build tree that `tools/wine-dxmt/build.sh` leaves behind, plus Xcode's
+Metal Toolchain for DXMT's shaders (`xcodebuild -downloadComponent MetalToolchain`; Xcode 26 and
+later no longer include it):
 
 ```sh
 tools/dxmt-patch/build.sh ~/Downloads/dxmt-v0.80/v0.80 ~/Neutron/dxmt-v0.80-patched

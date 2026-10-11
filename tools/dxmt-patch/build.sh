@@ -9,6 +9,9 @@
 #                                GPU process: Steam's UI). Needs a Wine built with
 #                                tools/wine-dxmt (winemac-remote-metal.patch); with other Wines
 #                                such swap chains crash instead of failing.
+#   destroyed-object-release.patch  an extra Release on an already destroyed resource or view
+#                                returns 0, as on Windows, instead of hitting a pure virtual
+#                                (Skyrim SE releases a texture and its view twice at startup).
 #
 #   tools/dxmt-patch/build.sh <dxmt-release-dir> <output-dir>
 #
@@ -25,9 +28,14 @@ release=${1:?usage: build.sh <dxmt-release-dir> <output-dir>}
 output=${2:?usage: build.sh <dxmt-release-dir> <output-dir>}
 here=$(cd "$(dirname "$0")" && pwd)
 work=${NEUTRON_DXMT_WORK:-$HOME/Library/Caches/Neutron/dxmt-patch}
-tag=${DXMT_TAG:-$(basename "$release")}
 
+# Release archives extract into a wrapper folder (dxmt-v0.80/v0.80/); look one level down.
+if [ ! -f "$release/x86_64-windows/d3d11.dll" ]; then
+  for d in "$release"/*/; do [ -f "$d/x86_64-windows/d3d11.dll" ] && release=${d%/} && break; done
+fi
 [ -f "$release/x86_64-windows/d3d11.dll" ] || { echo "error: $release/x86_64-windows/d3d11.dll not found" >&2; exit 1; }
+# The release's git tag: its folder name (v0.80), without a "dxmt-" prefix.
+tag=$(basename "$release"); tag=${DXMT_TAG:-${tag#dxmt-}}
 [ -e "$output" ] && { echo "error: $output already exists" >&2; exit 1; }
 command -v x86_64-w64-mingw32-g++ >/dev/null || { echo "error: missing mingw-w64 (brew install mingw-w64)" >&2; exit 1; }
 

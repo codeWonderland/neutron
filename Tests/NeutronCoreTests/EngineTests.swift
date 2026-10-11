@@ -279,6 +279,32 @@ final class EngineTests: XCTestCase {
             .notes.contains { $0.contains("32-bit .NET") })
     }
 
+    /// Other 32-bit programs fail at random on Wine 10+ for macOS (wow64cpu under Rosetta), so
+    /// they get a softer warning; 64-bit programs and Wine 9 builds don't.
+    func testWarnsAbout32BitOnWine10Plus() throws {
+        let paths = NeutronPaths(root: root.appendingPathComponent("state"))
+        let runtimes = RuntimeStore(paths: paths)
+        let wine = paths.root.appendingPathComponent("builds/wine")
+        try Fixtures.write(wine.appendingPathComponent("bin/wine"))
+        try runtimes.add(kind: .wine, path: wine)
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "default"))
+        var launcher = Launcher(runtimes: runtimes)
+        launcher.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: false) }
+        let game32 = root.appendingPathComponent("DD2/Win32/DunDefGame.exe")
+        try Fixtures.write(game32, Fixtures.makePE(imports: ["d3d9.dll"], machine: 0x14C))
+        let game64 = root.appendingPathComponent("DD2/Win64/DunDefGame.exe")
+        try Fixtures.write(game64, Fixtures.makePE(imports: ["d3d9.dll"]))
+        let warns = { (program: URL) in
+            try launcher.gamePlan(prefix: prefix, program: program, options: LaunchOptions())
+                .notes.contains { $0.hasPrefix("warning:") && $0.contains("is a 32-bit program") }
+        }
+
+        XCTAssertTrue(try warns(game32))
+        XCTAssertFalse(try warns(game64))
+        launcher.capabilities = { _ in WineCapabilities(exportsMacDriverFunctions: true, exportsWineUnixCall: true) }
+        XCTAssertFalse(try warns(game32))
+    }
+
     /// A launcher with no graphics imports (BeamNG.drive.exe) that starts a game exe in a
     /// subfolder: that exe's imports decide, not the launcher's; tools next to it don't count.
     func testLauncherFollowsGameExeBelowIt() throws {

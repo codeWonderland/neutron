@@ -21,8 +21,9 @@ DXMT and Apple's D3DMetal. Read `PROJECT-OUTLINE.md` for the plan, phase status 
   spike doc). D3D8 device creation works (32-bit `d3dprobe 8`). Launching through a signed-in
   Steam works (Deep Rock Galactic, Satisfactory; spike doc). 32-bit .NET/XNA games hang on Wine 10+
   (Secrets of Grindea; runs on CrossOver 24; spike doc). Dungeon Defenders 2 (UE3) runs 64-bit
-  (D3D9 and D3D11/DXMT) after a d3dx9 patch; its 32-bit build crashes in wined3d's WoW64 OpenGL
-  setup (spike doc). **Still unverified:** a commercial native 32-bit D3D8/D3D9 game. Don't build
+  (D3D9 and D3D11/DXMT) after a d3dx9 patch. On Wine 10+ for macOS any 32-bit program can crash
+  or hang at random (Rosetta runs wow64cpu's 64-bit code in 32-bit mode; `d3dprobe adapterloop`
+  repros it, DD2's 32-bit build hits it); CrossOver 24 (Wine 9) doesn't (spike doc). **Still unverified:** a commercial native 32-bit D3D8/D3D9 game. Don't build
   on that until tested.
 - Phase 0 is hands-on: the user has two Apple Silicon Macs and runs the games. Help them
   gather runtimes, run the checklist and record results in the spike doc's table. Don't
@@ -113,7 +114,7 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   MetalToolchain`). Builtin DLLs need the 17-byte "Wine builtin DLL\0" at 0x40.
 - `tools/d3dprobe/`: tiny D3D9/D3D11/D3D12 Windows program for checking a backend without a game
   (modes `11`, `12`, `9`, `8` (32-bit), `shared` textures, `timestamp`, `queryorder`, `calibrate` (UE5's GPU
-  clock calibration, step by step), `crossproc [inset|resize]` (a second process presents into
+  clock calibration, step by step), `adapterloop` (32-bit: the WoW64 mode-switch bug), `crossproc [inset|resize]` (a second process presents into
   this one's (child) window, like Chromium's GPU process))
   (`tools/d3dprobe/build.sh`, needs `brew install mingw-w64`). wined3d answers as a fake
   "NVIDIA GeForce 6800" at FL 9.3; DXMT answers as the real Apple GPU. It only creates a

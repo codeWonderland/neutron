@@ -366,6 +366,18 @@ an exception that can't be delivered, looping. Steam's overlay (which hooks D3D/
 32-bit process) makes it worse. This points at WoW64's 32↔64-bit transitions under Rosetta on macOS,
 not at D3D. Frames weren't checked (the screen was locked).
 
+**Root cause and a minimal repro (2026-10-11):** the DD2 crash reads address `0x2dc1` from
+`wow64cpu.dll`+0x1239, whose bytes are `8b 15 c1 2d 00 00` = `mov 0x2dc1(%rip),%edx` in 64-bit
+mode but `mov edx,[0x2dc1]` in 32-bit mode: the thread ran wow64cpu's 64-bit mode-switch code
+**in 32-bit mode**, the same fault as the 32-bit .NET hang (+0x1135, "32-bit .NET / XNA" above).
+`d3dprobe adapterloop` reproduces it without the game: a second thread sets up D3D9 adapters
+(wined3d's OpenGL adapter) for 15 s. 32-bit: 4 of 8 runs fail on Wine 11.18 stock, 4 of 8 with
+our patches (crashes at the same address, or the thread stuck); 64-bit: 0 of 4; **CrossOver 24
+(Wine 9): 0 of 8**. A stress of 1M+ handled access violations plus system calls on other threads
+doesn't reproduce it, so Apple's (translated) OpenGL setup seems to be the trigger. Neutron now
+warns when launching any 32-bit program on a Wine 10+ build (`reliable 32-bit no` in `doctor`),
+pointing at a CrossOver-based Wine 9.
+
 ### Deadzone Rogue 2 Playtest (2026-10-10)
 
 UE5 with the D3D12 Agility SDK, so auto-detect picks d3dmetal and falls back to dxmt (`-dx11`, stub

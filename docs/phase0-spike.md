@@ -181,6 +181,26 @@ hit a FIXME). Two patches wire DXMT to it:
   the drawable size the renderer sets on `ResizeBuffers` (a `CAMetalLayer` subclass; KVO on
   `drawableSize` doesn't fire). `d3dprobe crossproc resize` (child moves to (200,100) and grows
   to 400×250, renderer calls `ResizeBuffers`): the frame follows exactly.
+  **Revised 2026-10-10** after a review on [dxmt#141](https://github.com/3Shain/dxmt/issues/141)
+  listed what Steam did to the same design elsewhere (all applied, Wine `11.18-dxmt-v14`):
+  - An existing host is moved in place instead of removed and re-added (stock
+    `addCALayerHostViewWithContextId:` removes first: a gap on every child move or resize).
+  - Hosts get a `zPosition` from the child's Win32 paint order (sublayers stack in insertion
+    order, so a recreated swapchain could cover a sibling CEF browser), and every host under a
+    top-level window is re-placed on any `WindowPosChanged`, after its rects are updated.
+  - Host edges within a point of the view's are snapped to it (odd pixel sizes are half points
+    with Retina mode; not testable on this 1080p display).
+  - The pending/hosted tables grow and drop windows that no longer exist (they were fixed at 32
+    and a child destroyed before its owner was shown stayed queued).
+  - **Deadlock fixed:** `attach_pending_remote_layers` held the table mutex while hosting, and
+    hosting a child takes the same non-recursive mutex.
+  - Hosts clip to their frame and empty ones are hidden. `+macdrv` showed CEF presenting into
+    many 0×0 and 1×1 child windows; their unclipped layers drew a 64×64 black square over the
+    top-left of Steam's window (seen on v12 and v13).
+  Checked on v14: `d3dprobe crossproc` plain/inset/resize land exactly as before; Steam's store,
+  Library and "Special Offers" pop-up render with text; Library resized through 1279×799,
+  1500×900, 1499×899, 1281×801 and back (`SetWindowPos` from inside the prefix) shows no black
+  area and no corner square in any capture.
 - `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
 `d3dprobe crossproc` (one process owns a window with a child window, a second presents red
 into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,

@@ -379,6 +379,10 @@ warns when launching any 32-bit program on a Wine 10+ build (`reliable 32-bit no
 pointing at a CrossOver-based Wine 9. DD2's 32-bit build couldn't be tried on CrossOver 24: it quits
 without a Steam client, and the current Steam client doesn't run on that Wine 9 (in an APFS clone of
 the signed-in prefix its UI websocket connection is rejected, it never logs on, and it exits).
+Generating wow64cpu's 32→64 thunks as `push cs; push target; lret` instead of `ljmp *m16:32` (same
+stack effect) didn't fix it: `adapterloop` still failed 3 of 12 runs, some dying silently. The mode
+seems to be lost around the transitions under Rosetta, not in the jump encoding, so there's no
+Wine-side workaround here yet; the upstream report draft has the details.
 
 ### Deadzone Rogue 2 Playtest (2026-10-10)
 

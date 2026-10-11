@@ -104,8 +104,8 @@ State lives under `NeutronPaths` (`~/Library/Application Support/Neutron`, or `N
   and prints PASS when the window isn't black (SPLASH when it's untitled and under 640×360: a
   launcher splash that never gave way to the game). Use it to check games instead of guessing.
 - `tools/wine-dxmt/`: Wine patches + script that make a DXMT-capable copy of a macOS Wine
-  build by rebuilding only `winemac.so`, `mfreadwrite.dll` and the 32/64-bit `d3dx9_*`, `xaudio2_*`
-  and `xactengine*` DLLs (needs
+  build by rebuilding only `winemac.so`, `mfreadwrite.dll` and the 32/64-bit `d3dx9_*`, `xaudio2_*`,
+  `xactengine*` and `bcrypt` DLLs (needs
   `brew install bison flex mingw-w64`). Every `*.patch` there is applied once, in name order;
   `.neutron-patches` in the source tree records which.
 - `tools/dxmt-patch/`: DXMT patches + script that rebuild only DXMT's Windows-side DLLs

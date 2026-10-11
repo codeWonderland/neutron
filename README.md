@@ -48,8 +48,9 @@ which lets DXMT present into another process's window, e.g. Steam's UI), `mfread
 `d3dx9_*.dll` (with `d3dx9-check-version-debug.patch`, without which Unreal 3 games built with
 D3D9 debug info, like Dungeon Defenders 2, crash at startup), and the 32- and 64-bit `xaudio2_*` and
 `xactengine*` DLLs (with `faudio-wma-bytes-requested.patch`, upstream FAudio's fix for a divide by
-zero on xWMA audio that Skyrim Special Edition hits) from the matching Wine source, which takes a
-few minutes the first time:
+zero on xWMA audio that Skyrim Special Edition hits), and the 32- and 64-bit `bcrypt.dll` (with
+`bcrypt-des.patch`, the DES cipher .NET's `DES` class needs) from the matching Wine source, which
+takes a few minutes the first time:
 
 ```sh
 brew install bison flex mingw-w64

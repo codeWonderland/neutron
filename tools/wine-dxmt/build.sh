@@ -18,6 +18,9 @@
 #   faudio-wma-bytes-requested.patch xaudio2_*.dll and xactengine*.dll (32- and 64-bit): upstream
 #                                    FAudio ee018363, no divide by zero for xWMA voices with an
 #                                    OnVoiceProcessingPassStart callback (Skyrim SE crashed).
+#   bcrypt-des.patch                 bcrypt.dll (32- and 64-bit): the DES algorithm (ECB/CBC/CFB,
+#                                    via the bundled SymCrypt), which .NET's DES class needs
+#                                    (Resonite stopped at world setup).
 #
 #   tools/wine-dxmt/build.sh <wine-root> <output-dir>
 #
@@ -90,12 +93,12 @@ if [ ! -f "$build/Makefile" ] || ! grep -q "^PE_ARCHS = *i386" "$build/Makefile"
     || { echo "error: configure failed; see $build/configure.log" >&2; exit 1; }
 fi
 # Windows-side DLLs rebuilt for both architectures.
-pe_dlls=$(cd "$src/dlls" && ls -d d3dx9_* xaudio2_* xactengine*)
+pe_dlls=$(cd "$src/dlls" && ls -d d3dx9_* xaudio2_* xactengine* bcrypt)
 pe_targets=""
 for n in $pe_dlls; do
   pe_targets="$pe_targets dlls/$n/i386-windows/$n.dll dlls/$n/x86_64-windows/$n.dll"
 done
-echo "Building winemac.so, mfreadwrite.dll, d3dx9_*, xaudio2_* and xactengine*…"
+echo "Building winemac.so, mfreadwrite.dll, d3dx9_*, xaudio2_*, xactengine* and bcrypt…"
 make -C "$build" -j"$(sysctl -n hw.ncpu)" dlls/winemac.drv/winemac.so dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll $pe_targets \
   > "$build/make.log" 2>&1 || { echo "error: build failed; see $build/make.log" >&2; exit 1; }
 nm -gU "$build/dlls/winemac.drv/winemac.so" | grep -q " _macdrv_functions$" \

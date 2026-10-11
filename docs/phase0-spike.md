@@ -671,6 +671,22 @@ files to see what happens before they need data (`~/neutron-games/scripts/bintra
   `Bin64/BeamNG.drive.x64.exe`. Detection now follows such launchers to the game exe below
   them (`GameScan.launchedGame`), giving d3dmetal with a dxmt fallback. Across the 164 exes of
   the 105-game library this changed only BeamNG. Still running after 40 s; no Steam relaunch.
+  **2026-10-11, Wine 11.18-dxmt-v15 + DXMT v6** (a 16.4 GB copy: everything but the vehicle and
+  level packs except `common`/`pickup`/`covet` and `smallgrid`/`gridmap_v2`/`showroom_v2`/`garage_v2`;
+  `Bin64/BeamNG.drive.x64.exe` directly, signed-in Steam running, `beamng.log` read since the screen
+  was locked):
+  - Default: BeamNG picks D3D12 ("Apple M1 (D3D12)", Wine's vkd3d on MoltenVK under the dxmt
+    backend) and crashes right after creating the device.
+  - `-- -gfx dx11`: device on DXMT (Apple M1, SM 5.0), game window "BeamNG.drive - 0.39.4.0 -
+    Direct3D11", UI loads, but 45 shaders fail: Wine's builtin `d3dcompiler_47` (vkd3d-shader) can't
+    open BeamNG's virtual include `MagicMacrosMagicFile.h` (`E4002: Failed to open`). Wine loads its
+    builtin even though the game ships Microsoft's `Bin64/d3dcompiler_47.dll`.
+  - `-- -gfx dx11` with `WINEDLLOVERRIDES=d3dcompiler_47=n` (the shipped DLL): **0 shader errors, no
+    crash, "ui finished loading"**, on its first-run online-features screen. Frames not checked.
+  Workaround for the Phase 2 database: `-gfx dx11` + native `d3dcompiler_47`. Candidate default
+  (not done): prefer a `d3dcompiler_47.dll` a game ships, as Windows does; only Legends of Idleon,
+  Dungeon Defenders 2 and Desktop Survivors 98 ship one at the top level, and Idleon (ANGLE) works
+  with the builtin, so it needs a visual check before changing.
 - **Icarus** (UE 4.27 → DXMT `-dx11`) and **Borderlands 3** (UE4 → DXMT `-dx11`): still
   running after 40 s; neither relaunches through Steam.
 

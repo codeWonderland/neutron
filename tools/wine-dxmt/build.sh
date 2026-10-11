@@ -18,7 +18,7 @@
 #   faudio-wma-bytes-requested.patch xaudio2_*.dll and xactengine*.dll (32- and 64-bit): upstream
 #                                    FAudio ee018363, no divide by zero for xWMA voices with an
 #                                    OnVoiceProcessingPassStart callback (Skyrim SE crashed).
-#   bcrypt-des.patch                 bcrypt.dll (32- and 64-bit): the DES algorithm (ECB/CBC/CFB,
+#   bcrypt-des.patch                 bcrypt.dll (32- and 64-bit): DES and 3DES encryption (ECB/CBC/CFB,
 #                                    via the bundled SymCrypt), which .NET's DES class needs
 #                                    (Resonite stopped at world setup).
 #

@@ -20,12 +20,17 @@
 //                       grows to 400x250; the presenting process resizes its buffers to match
 //   d3dprobe.exe queryorder  polls timestamp and disjoint queries without waiting, frame by frame,
 //                       and counts timestamps that were ready before their disjoint query
+//   d3dprobe.exe adapterloop [seconds]  sets up D3D9 adapters (wined3d's OpenGL adapter) over and
+//                       over on a second thread for 15 s. Built 32-bit, it intermittently crashes
+//                       or hangs under Rosetta: wow64cpu's 64-bit code runs in 32-bit mode
+//                       (Dungeon Defenders 2's 32-bit crash). Exit code 0 means it survived.
 //
 // Exit code 0 means the device was created.
 #define COBJMACROS
 #define INITGUID
 #include <windows.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <d3d11.h>
 #include <d3d12.h>
 #include <d3d9.h>
@@ -403,6 +408,39 @@ static int probe_crossproc(BOOL inset, BOOL resize) {
     return (int)code;
 }
 
+static volatile LONG adapterloop_stop, adapterloop_count;
+
+static DWORD WINAPI adapterloop_thread(void *unused) {
+    while (!adapterloop_stop) {
+        IDirect3D9 *d3d = Direct3DCreate9(D3D_SDK_VERSION);
+        if (d3d) {
+            D3DADAPTER_IDENTIFIER9 id;
+            D3DCAPS9 caps;
+            IDirect3D9_GetAdapterIdentifier(d3d, 0, 0, &id);
+            IDirect3D9_GetDeviceCaps(d3d, 0, D3DDEVTYPE_HAL, &caps);
+            IDirect3D9_Release(d3d);
+        }
+        InterlockedIncrement(&adapterloop_count);
+    }
+    return 0;
+}
+
+static int probe_adapterloop(int seconds) {
+    HANDLE thread = CreateThread(NULL, 0, adapterloop_thread, NULL, 0, NULL);
+    for (int s = 1; s <= seconds; s++) {
+        Sleep(1000);
+        printf("%d s: %ld adapter setups\n", s, adapterloop_count);
+        fflush(stdout);
+    }
+    adapterloop_stop = 1;
+    if (WaitForSingleObject(thread, 5000) != WAIT_OBJECT_0 || !adapterloop_count) {
+        printf("adapterloop STUCK: the thread never finished a setup or didn't stop (%ld setups)\n", adapterloop_count);
+        return 1;
+    }
+    printf("adapterloop OK (%ld setups)\n", adapterloop_count);
+    return 0;
+}
+
 int main(int argc, char **argv) {
     const char *mode = argc > 1 ? argv[1] : "11";
     if (strcmp(mode, "crossproc-child") == 0 && argc > 2) {
@@ -416,6 +454,7 @@ int main(int argc, char **argv) {
                : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
                : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
                : strcmp(mode, "calibrate") == 0 ? probe_calibrate()
+               : strcmp(mode, "adapterloop") == 0 ? probe_adapterloop(argc > 2 ? atoi(argv[2]) : 15)
                : strcmp(mode, "crossproc") == 0 ? probe_crossproc(argc > 2 && strcmp(argv[2], "full") != 0,
                                                                   argc > 2 && strcmp(argv[2], "resize") == 0)
                : probe_d3d11();

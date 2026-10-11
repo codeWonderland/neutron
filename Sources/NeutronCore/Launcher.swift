@@ -99,6 +99,8 @@ public struct Launcher: Sendable {
         }
         if scan?.executable.isDotNet32BitOnly == true, !capabilities.runsDotNet32Bit {
             notes.append("warning: \(program.lastPathComponent) is a 32-bit .NET program; those hang at startup on wine \(wine.version) (Wine 10+ on macOS). Use a CrossOver-based Wine 9: `neutron prefix set-runtime \(prefix.config.name) wine <version>`")
+        } else if scan?.executable.machine == .i386, !capabilities.runs32BitReliably {
+            notes.append("warning: \(program.lastPathComponent) is a 32-bit program; on wine \(wine.version) (Wine 10+ on macOS) those can crash or hang at random when switching between 32- and 64-bit code, especially with Direct3D 9. A CrossOver-based Wine 9 runs them reliably: `neutron prefix set-runtime \(prefix.config.name) wine <version>`")
         }
         let runtime = try backend.requiredRuntime.map { try runtimes.find($0, version: prefix.config.pinnedVersion(of: $0)) }
         let setup = try BackendSetup.make(for: backend, runtime: runtime)

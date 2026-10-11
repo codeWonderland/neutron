@@ -315,9 +315,11 @@ Three problems, in order:
 full-screen 1920×1080 on DXMT, with Wine `11.18-dxmt-v15` + DXMT `dxmt-v0.80-v6`, launched as
 `SkyrimSE.exe` with `steam_appid.txt` while the signed-in Steam ran. From Steam
 (`neutron steam launch 489830`) the launcher renders; before the fixes, its PLAY started the game,
-which exited within 14 s. PLAY wasn't clicked again after the fixes (the launcher sat behind
-Steam's window, and posted Win32 clicks don't reach its button), so the full Steam path is
-unverified. d3dprobe `11`, `timestamp`,
+which exited within 14 s. **After the fixes (Wine v17 + DXMT v7, 2026-10-11) the full Steam path
+works:** Steam → `SkyrimSELauncher.exe` → PLAY → `SkyrimSE.exe` → main menu, checked from a DXMT
+frame dump with the screen locked. PLAY was clicked with `SendInput` from a helper inside the prefix
+(after `SetForegroundWindow`); posted `WM_LBUTTONDOWN` messages don't reach its button, and macOS
+clicks don't reach a locked screen, but Wine's own input queue does. d3dprobe `11`, `timestamp`,
 `calibrate`, `queryorder` and `crossproc` plain/inset/resize unchanged on v15 + v6.
 
 ### Dungeon Defenders 2 (2026-10-10)

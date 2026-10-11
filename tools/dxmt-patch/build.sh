@@ -12,6 +12,9 @@
 #   destroyed-object-release.patch  an extra Release on an already destroyed resource or view
 #                                returns 0, as on Windows, instead of hitting a pure virtual
 #                                (Skyrim SE releases a texture and its view twice at startup).
+#   frame-dump.patch             with DXMT_DUMP_FRAMES_EVERY=N and DXMT_DUMP_FRAMES_DIR=<Windows
+#                                path>, writes every Nth presented frame (up to 4) as a PPM, to
+#                                check rendering without capturing the screen (locked Mac, CI).
 #
 #   tools/dxmt-patch/build.sh <dxmt-release-dir> <output-dir>
 #

@@ -347,6 +347,25 @@ JIT-translated 32-bit code under Rosetta even when it works). No 32-bit run on v
 OpenGL setup, so whether the patched check then passes there is unverified. **A commercial native
 32-bit D3D9 game is still unverified.**
 
+**Follow-up (2026-10-11, Wine 11.18-dxmt-v15 + DXMT v6, a 3.1 GB copy without the map packages,
+texture caches, movies and audio, launched in the signed-in Steam prefix):** startup takes ~10 s
+now, so the earlier "nothing logged for 4 min" runs were hangs, not slowness. 12 runs, alternating
+with and without Steam's 32-bit overlay (`gameoverlayrenderer.dll` renamed away):
+
+| | reached the menu level, still running at 2 min, game window | hung (no log, 100% CPU) | crashed (`0x79f2eaa4`/`0x79ec1239`) | exited early |
+|---|---|---|---|---|
+| no overlay (6) | **2** | 2 | 1 | 1 |
+| overlay (6) | 0 | 4 | 1 | 1 |
+
+So the patched 32-bit `d3dx9_43` passes the check and the 32-bit build can run; the remaining
+failures are one class. Crashes show a fault in 64-bit mode on the 32-bit stack (`cs=0x2b`, a
+garbage `rip` made of two 32-bit values, "Exception frame is not in stack limits => unable to
+dispatch exception"). A hung process (`sample`) has one thread stuck under `_sigtramp` → Wine's
+`ntdll.so` signal handling while Rosetta's exception server thread is busy (1632 of 1850 samples):
+an exception that can't be delivered, looping. Steam's overlay (which hooks D3D/OpenGL in the
+32-bit process) makes it worse. This points at WoW64's 32↔64-bit transitions under Rosetta on macOS,
+not at D3D. Frames weren't checked (the screen was locked).
+
 ### Deadzone Rogue 2 Playtest (2026-10-10)
 
 UE5 with the D3D12 Agility SDK, so auto-detect picks d3dmetal and falls back to dxmt (`-dx11`, stub

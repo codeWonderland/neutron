@@ -103,7 +103,7 @@ public struct Launcher: Sendable {
             notes.append("warning: \(program.lastPathComponent) is a 32-bit program; on wine \(wine.version) (Wine 10+ on macOS) those can crash or hang at random when switching between 32- and 64-bit code, especially with Direct3D 9. A CrossOver-based Wine 9 runs them reliably: `neutron prefix set-runtime \(prefix.config.name) wine <version>`")
         }
         let runtime = try backend.requiredRuntime.map { try runtimes.find($0, version: prefix.config.pinnedVersion(of: $0)) }
-        let setup = try BackendSetup.make(for: backend, runtime: runtime)
+        var setup = try BackendSetup.make(for: backend, runtime: runtime)
 
         var engineArguments: [String] = []
         if options.engineArguments, let engine = scan?.engine?.engine {
@@ -123,6 +123,13 @@ public struct Launcher: Sendable {
             // The stub passes the project name first; do the same.
             projectArgument = engine.unrealProject.map { [$0] } ?? []
             notes.append("Unreal launcher stub: running \(([target.lastPathComponent] + projectArgument).joined(separator: " ")) directly (--launch-stub to run the stub)")
+        }
+
+        // Windows loads a d3dcompiler_47.dll that ships next to the game; Wine prefers its
+        // builtin (vkd3d-shader), which can't open BeamNG.drive's virtual shader includes.
+        if Launcher.shipsDLL("d3dcompiler_47.dll", nextTo: target) {
+            setup.dllOverrides["d3dcompiler_47"] = "n,b"
+            notes.append("using the game's own d3dcompiler_47.dll")
         }
 
         let appID = target.deletingLastPathComponent().appendingPathComponent("steam_appid.txt")
@@ -248,6 +255,12 @@ public struct Launcher: Sendable {
         }
         echo()
         return process.terminationStatus
+    }
+
+    /// Whether `dll` (any case) is in the same folder as `exe`.
+    static func shipsDLL(_ dll: String, nextTo exe: URL) -> Bool {
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: exe.deletingLastPathComponent().path)) ?? []
+        return names.contains { $0.caseInsensitiveCompare(dll) == .orderedSame }
     }
 
     /// Starts `process`, turning "bad CPU type" (an x86_64 Wine without Rosetta) into an

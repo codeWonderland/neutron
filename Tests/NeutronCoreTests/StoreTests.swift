@@ -115,6 +115,25 @@ final class StoreTests: XCTestCase {
         XCTAssertEqual(plan.backend, .dxmt)
     }
 
+    /// Like Windows, a d3dcompiler_47.dll next to the game is used instead of Wine's builtin
+    /// (BeamNG.drive's shaders don't compile with the builtin).
+    func testGameShippedD3DCompilerIsPreferred() throws {
+        let runtimes = RuntimeStore(paths: paths)
+        try runtimes.add(kind: .wine, path: makeWine("10.2"))
+        let prefix = try PrefixStore(paths: paths).create(PrefixConfig(name: "default"))
+        let game = paths.root.appendingPathComponent("games/BeamNG/Bin64/BeamNG.drive.x64.exe")
+        try touch(game)
+        let plain = try Launcher(runtimes: runtimes).gamePlan(prefix: prefix, program: game,
+                                                               options: LaunchOptions(backend: .wined3d))
+        XCTAssertFalse(plain.environment["WINEDLLOVERRIDES"]?.contains("d3dcompiler_47") ?? false)
+
+        try touch(game.deletingLastPathComponent().appendingPathComponent("D3DCOMPILER_47.dll"))
+        let shipped = try Launcher(runtimes: runtimes).gamePlan(prefix: prefix, program: game,
+                                                                 options: LaunchOptions(backend: .wined3d))
+        XCTAssertTrue(shipped.environment["WINEDLLOVERRIDES"]?.contains("d3dcompiler_47=n,b") ?? false,
+                      "\(shipped.environment)")
+    }
+
     func testWineLibraryPathsBecomeDyldFallback() throws {
         let runtimes = RuntimeStore(paths: paths)
         let frameworks = paths.root.appendingPathComponent("Template.app/Contents/Frameworks")

@@ -424,13 +424,15 @@ and its UI renders as before.
 
 ### Itch games (2026-10-10)
 
-From the desktop's `/mnt/Storage` itch folders, smoke-tested in the Steam prefix (Wine
+From the desktop's `/mnt/Storage` itch folders (the rest there are Linux or Java builds), smoke-tested in the Steam prefix (Wine
 11.18-dxmt-v11):
 
 | Game | Result |
 |---|---|
 | Quantum Shift (Godot 4.3) | PASS: window renders (`--rendering-driver vulkan` added) |
 | yawnoc (PyInstaller, 64-bit) | PASS: window renders |
+| Death and Taxes (Unity 2019.4, 2026-10-11, Wine v19 + DXMT v8) | PASS: main menu (DXMT) |
+| Daycart Isle (Godot 4.3, single exe, 2026-10-11) | PASS: 3D island scene and title menu (Vulkan via MoltenVK) |
 | Te-Tower (Godot 4.3) | Not a Wine problem: the extracted folder has no `.pck` ("Couldn't load project data"); the full game is only in `Te-Tower.rar` |
 
 ### Diagnoses (2026-10-09)

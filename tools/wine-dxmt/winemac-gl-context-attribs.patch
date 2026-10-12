@@ -1,0 +1,26 @@
+--- a/dlls/winemac.drv/opengl.c
++++ b/dlls/winemac.drv/opengl.c
+@@ -2090,6 +2090,12 @@
+                 }
+                 core = value == WGL_CONTEXT_CORE_PROFILE_BIT_ARB;
+                 profile = value;
++                break;
++
++            case WGL_CONTEXT_OPENGL_NO_ERROR_ARB:
++                /* A hint (GL_KHR_no_error) that CGL can't express; contexts keep reporting
++                 * errors, which is allowed. Failing here broke games that pass it, even as 0. */
++                TRACE("ignoring WGL_CONTEXT_OPENGL_NO_ERROR_ARB %d\n", value);
+                 break;
+ 
+             default:
+@@ -2109,7 +2115,9 @@
+     if ((major == 3 && (minor == 2 || minor == 3)) ||
+         (major == 4 && (minor == 0 || minor == 1)))
+     {
+-        if (!(flags & WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB))
++        /* A core profile context is what macOS provides either way; Windows drivers grant
++         * one without the forward-compatible bit too (Idle Colony asks for 3.3 core). */
++        if (!(flags & WGL_CONTEXT_FORWARD_COMPATIBLE_BIT_ARB) && profile != WGL_CONTEXT_CORE_PROFILE_BIT_ARB)
+         {
+             WARN("OS X only supports forward-compatible 3.2+ contexts\n");
+             RtlSetLastWin32Error(ERROR_INVALID_VERSION_ARB);

@@ -290,7 +290,8 @@ The 12-game sweep (`scripts/sweep.sh`, batch prefix, no Steam) on Wine `11.18-dx
 `dxmt-v0.80-v8`: 10 pass as before, and Loop Tower Demo now passes (it failed on v11). A game about
 sucking stays mostly dark (2% non-black, as on every earlier sweep): a DXMT frame dump at 60 s shows
 only its two animated ghost sprites, its Player.log has no render errors (D3D11 FL 11.1) but
-`SteamAPI_Init() failed`, so it most likely waits for Steam; recheck with a signed-in Steam. Captures must run with the
+`SteamAPI_Init() failed`. **With the signed-in Steam running (2026-10-12) it reaches its main menu**
+(Start New Game / Wishlist / Quit over the ghost backdrop): it was waiting for Steam. Captures must run with the
 Steam prefix stopped, or the biggest Wine window is Steam's.
 
 **Idle Colony** (custom OpenGL engine with Dear ImGui) failed in layers:
@@ -301,9 +302,9 @@ Steam prefix stopped, or the biggest Wine window is Steam's.
 2. ImGui's shaders are GLSL `#version 130`, which macOS core contexts reject (Windows core contexts
    accept it). `tools/wine-dxmt/opengl32-glsl-version.patch` raises 130/140 to 150 in a 3.2+ core
    context (same in/out syntax).
-3. Without a signed-in Steam client `SteamInternal_ContextInit` returns null and it crashes; with
-   Steam it got as far as the shader step before the patch. Not re-run with Steam yet (the account
-   was signed in elsewhere).
+3. Without a signed-in Steam client `SteamInternal_ContextInit` returns null and it crashes.
+   **With Steam running, on Wine v19 (2026-10-12): title screen** (logo, Start, language flags), no
+   shader errors.
 `d3dprobe glcore` reproduces 1 and 2 without the game: context FAILED (error 87) on v17; created but
 GLSL 1.30 rejected on v18; created and both ImGui shaders compiled on v19, in 32- and 64-bit. D3D9/D3D8
 on wined3d (GL) and the DXMT probes are unchanged on v19.

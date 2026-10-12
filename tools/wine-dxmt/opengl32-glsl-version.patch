@@ -1,0 +1,78 @@
+--- a/dlls/opengl32/thunks.c
++++ b/dlls/opengl32/thunks.c
+@@ -3,6 +3,7 @@
+ #include <stdarg.h>
+ #include <stddef.h>
+ #include <stdlib.h>
++#include <string.h>
+ 
+ #include "ntstatus.h"
+ #include "windef.h"
+@@ -21185,16 +21186,67 @@
+     TRACE( "op %d, res %d, arg1 %d, arg2 %d, arg3 %d\n", op, res, arg1, arg2, arg3 );
+     if ((status = UNIX_CALL( glShaderOp3EXT, &args ))) WARN( "glShaderOp3EXT returned %#lx\n", status );
+     set_context_attribute( -1 /* unsupported */, NULL, 0 );
++}
++
++/* Core profile contexts on Windows still compile GLSL 1.30/1.40; macOS's only accept 1.50+.
++ * Shaders in those versions use in/out like 1.50 (ImGui's OpenGL3 backend, Idle Colony), so in a
++ * 3.2+ core context their #version is raised to 150 (same length, so lengths stay valid). */
++static GLchar *raise_glsl_version( GLsizei count, const GLchar *const *string, const GLint *length, GLsizei *index )
++{
++    GLint mask = 0, major = 0;
++    GLsizei i;
++
++    glGetIntegerv( 0x9126 /* GL_CONTEXT_PROFILE_MASK */, &mask );
++    glGetIntegerv( 0x821b /* GL_MAJOR_VERSION */, &major );
++    if (!(mask & 1 /* GL_CONTEXT_CORE_PROFILE_BIT */) || major < 3) return NULL;
++
++    for (i = 0; i < count; i++)
++    {
++        size_t len = length && length[i] >= 0 ? length[i] : strlen( string[i] ), pos;
++        const char *str = string[i], *found = NULL;
++        GLchar *copy;
++
++        for (pos = 0; pos + 8 <= len; pos++)
++            if (!memcmp( str + pos, "#version", 8 )) { found = str + pos + 8; break; }
++        if (!found) continue;
++        while (found < str + len && (*found == ' ' || *found == '\t')) found++;
++        if (found + 3 > str + len || found[0] != '1' || (found[1] != '3' && found[1] != '4') || found[2] != '0' ||
++            (found + 3 < str + len && found[3] >= '0' && found[3] <= '9'))
++            return NULL;
++        if (!(copy = malloc( len + 1 ))) return NULL;
++        memcpy( copy, str, len );
++        copy[len] = 0;
++        copy[found - str + 1] = '5';
++        TRACE( "raising GLSL #version 1%c0 to 150\n", found[1] );
++        *index = i;
++        return copy;
++    }
++    return NULL;
+ }
+ 
+ static void WINAPI glShaderSource( GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length )
+ {
+     struct glShaderSource_params args = { .teb = NtCurrentTeb(), .count = count, .string = string, .length = length };
++    const GLchar **strings = NULL;
++    GLchar *raised;
++    GLsizei index;
+     NTSTATUS status;
+     TRACE( "shader %d, count %d, string %p, length %p\n", shader, count, string, length );
++    if (string && (raised = raise_glsl_version( count, string, length, &index )))
++    {
++        if ((strings = malloc( count * sizeof(*strings) )))
++        {
++            memcpy( strings, string, count * sizeof(*strings) );
++            strings[index] = raised;
++            args.string = strings;
++        }
++    }
++    else raised = NULL;
+     args.shader = *map_context_objects( OBJ_TYPE_SHADER, 1, &shader );
+     if ((status = UNIX_CALL( glShaderSource, &args ))) WARN( "glShaderSource returned %#lx\n", status );
+     set_context_attribute( -1 /* unsupported */, NULL, 0 );
++    free( strings );
++    free( raised );
+ }
+ 
+ static void WINAPI glShaderSourceARB( GLhandleARB shaderObj, GLsizei count, const GLcharARB **string, const GLint *length )

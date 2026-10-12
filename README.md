@@ -50,7 +50,10 @@ D3D9 debug info, like Dungeon Defenders 2, crash at startup), and the 32- and 64
 `xactengine*` DLLs (with `faudio-wma-bytes-requested.patch`, upstream FAudio's fix for a divide by
 zero on xWMA audio that Skyrim Special Edition hits), and the 32- and 64-bit `bcrypt.dll` (with
 `bcrypt-des.patch`, DES and 3DES encryption, which Wine 11 lists but doesn't implement; .NET's
-`DES` class needs it) from the matching Wine source, which
+`DES` class needs it); `winemac.so` also gets `winemac-gl-context-attribs.patch` (OpenGL contexts
+Windows drivers grant: no forward-compatible bit needed for core profiles, the no-error hint ignored)
+and `opengl32.dll` `opengl32-glsl-version.patch` (GLSL 1.30/1.40 shaders compile in macOS core
+contexts, as on Windows) from the matching Wine source, which
 takes a few minutes the first time:
 
 ```sh

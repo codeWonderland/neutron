@@ -284,6 +284,28 @@ Updating the M1 from macOS 15.5 to 27.0.1 removed Rosetta 2: every x86_64 Wine f
 reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the Apple M1 (FL 11.0),
 32-bit D3D8 on wined3d creates and presents, and `neutron doctor` is all green.
 
+### Regression sweep and Idle Colony (2026-10-11)
+
+The 12-game sweep (`scripts/sweep.sh`, batch prefix, no Steam) on Wine `11.18-dxmt-v19` + DXMT
+`dxmt-v0.80-v8`: 10 pass as before, and Loop Tower Demo now passes (it failed on v11). A game about
+sucking stays mostly dark (2% non-black, as on every earlier sweep). Captures must run with the
+Steam prefix stopped, or the biggest Wine window is Steam's.
+
+**Idle Colony** (custom OpenGL engine with Dear ImGui) failed in layers:
+1. `m_glContext` assertion: it asks for a 3.3 core context with `WGL_CONTEXT_OPENGL_NO_ERROR_ARB` = 0
+   and no forward-compatible bit. winemac rejected both (unknown attribute; "OS X only supports
+   forward-compatible 3.2+ contexts"). `tools/wine-dxmt/winemac-gl-context-attribs.patch` ignores the
+   hint and grants core profiles without the bit, as Windows drivers do.
+2. ImGui's shaders are GLSL `#version 130`, which macOS core contexts reject (Windows core contexts
+   accept it). `tools/wine-dxmt/opengl32-glsl-version.patch` raises 130/140 to 150 in a 3.2+ core
+   context (same in/out syntax).
+3. Without a signed-in Steam client `SteamInternal_ContextInit` returns null and it crashes; with
+   Steam it got as far as the shader step before the patch. Not re-run with Steam yet (the account
+   was signed in elsewhere).
+`d3dprobe glcore` reproduces 1 and 2 without the game: context FAILED (error 87) on v17; created but
+GLSL 1.30 rejected on v18; created and both ImGui shaders compiled on v19, in 32- and 64-bit. D3D9/D3D8
+on wined3d (GL) and the DXMT probes are unchanged on v19.
+
 ### Skyrim Special Edition (2026-10-10)
 
 Creation Engine, 64-bit D3D11 (`SkyrimSE.exe` imports d3d11, d3dx9_42, dxgi). Steam starts

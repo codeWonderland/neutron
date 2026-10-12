@@ -9,6 +9,15 @@
 #                                    while another thread flushes a layered window (Unreal
 #                                    splash screens: Deep Rock Galactic hung on its splash).
 #
+#   winemac-gl-context-attribs.patch winemac.so creates OpenGL contexts that Windows drivers grant:
+#                                    WGL_CONTEXT_OPENGL_NO_ERROR_ARB is ignored (CGL has no such
+#                                    mode) and 3.2+ core profiles don't need the forward-compatible
+#                                    bit (Idle Colony asserted on a null 3.3 core context).
+#
+#   opengl32-glsl-version.patch      opengl32.dll (32- and 64-bit): in a 3.2+ core context, GLSL
+#                                    #version 130/140 is raised to 150, which macOS accepts and
+#                                    Windows core contexts don't need (Dear ImGui's OpenGL3 backend).
+#
 #   winemac-remote-metal.patch       DXMT can present into another process's window (Chromium's
 #                                    GPU process: Steam's UI) through winemac's remote-layer
 #                                    swapchain. Pairs with tools/dxmt-patch/cross-process-swapchain.
@@ -93,12 +102,12 @@ if [ ! -f "$build/Makefile" ] || ! grep -q "^PE_ARCHS = *i386" "$build/Makefile"
     || { echo "error: configure failed; see $build/configure.log" >&2; exit 1; }
 fi
 # Windows-side DLLs rebuilt for both architectures.
-pe_dlls=$(cd "$src/dlls" && ls -d d3dx9_* xaudio2_* xactengine* bcrypt)
+pe_dlls=$(cd "$src/dlls" && ls -d d3dx9_* xaudio2_* xactengine* bcrypt opengl32)
 pe_targets=""
 for n in $pe_dlls; do
   pe_targets="$pe_targets dlls/$n/i386-windows/$n.dll dlls/$n/x86_64-windows/$n.dll"
 done
-echo "Building winemac.so, mfreadwrite.dll, d3dx9_*, xaudio2_*, xactengine* and bcrypt…"
+echo "Building winemac.so, mfreadwrite.dll, d3dx9_*, xaudio2_*, xactengine*, bcrypt and opengl32…"
 make -C "$build" -j"$(sysctl -n hw.ncpu)" dlls/winemac.drv/winemac.so dlls/mfreadwrite/x86_64-windows/mfreadwrite.dll $pe_targets \
   > "$build/make.log" 2>&1 || { echo "error: build failed; see $build/make.log" >&2; exit 1; }
 nm -gU "$build/dlls/winemac.drv/winemac.so" | grep -q " _macdrv_functions$" \

@@ -20,6 +20,9 @@
 //                       grows to 400x250; the presenting process resizes its buffers to match
 //   d3dprobe.exe queryorder  polls timestamp and disjoint queries without waiting, frame by frame,
 //                       and counts timestamps that were ready before their disjoint query
+//   d3dprobe.exe glcore  creates an OpenGL 3.3 core context the way Idle Colony does (no
+//                       forward-compatible bit, WGL_CONTEXT_OPENGL_NO_ERROR_ARB = 0) and compiles
+//                       Dear ImGui's GLSL 1.30 shaders, which Windows drivers accept in core contexts
 //   d3dprobe.exe adapterloop [seconds]  sets up D3D9 adapters (wined3d's OpenGL adapter) over and
 //                       over on a second thread for 15 s. Built 32-bit, it intermittently crashes
 //                       or hangs under Rosetta: wow64cpu's 64-bit code runs in 32-bit mode
@@ -29,6 +32,7 @@
 #define COBJMACROS
 #define INITGUID
 #include <windows.h>
+#include <GL/gl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <d3d11.h>
@@ -408,6 +412,65 @@ static int probe_crossproc(BOOL inset, BOOL resize) {
     return (int)code;
 }
 
+typedef HGLRC (WINAPI *create_context_attribs_fn)(HDC, HGLRC, const int *);
+typedef GLuint (APIENTRY *create_shader_fn)(GLenum);
+typedef void (APIENTRY *shader_source_fn)(GLuint, GLsizei, const char *const *, const GLint *);
+typedef void (APIENTRY *compile_shader_fn)(GLuint);
+typedef void (APIENTRY *get_shaderiv_fn)(GLuint, GLenum, GLint *);
+typedef void (APIENTRY *get_shader_info_log_fn)(GLuint, GLsizei, GLsizei *, char *);
+
+static int compile_glsl(GLenum type, const char *source, const char *name) {
+    create_shader_fn create_shader = (create_shader_fn)wglGetProcAddress("glCreateShader");
+    shader_source_fn shader_source = (shader_source_fn)wglGetProcAddress("glShaderSource");
+    compile_shader_fn compile_shader = (compile_shader_fn)wglGetProcAddress("glCompileShader");
+    get_shaderiv_fn get_shaderiv = (get_shaderiv_fn)wglGetProcAddress("glGetShaderiv");
+    get_shader_info_log_fn info_log = (get_shader_info_log_fn)wglGetProcAddress("glGetShaderInfoLog");
+    if (!create_shader || !shader_source || !compile_shader || !get_shaderiv) { printf("%s: no shader entry points\n", name); return 1; }
+    GLuint shader = create_shader(type);
+    shader_source(shader, 1, &source, NULL);
+    compile_shader(shader);
+    GLint ok = 0;
+    get_shaderiv(shader, 0x8B81 /* GL_COMPILE_STATUS */, &ok);
+    char log[512] = "";
+    if (!ok && info_log) info_log(shader, sizeof(log), NULL, log);
+    printf("%s shader (GLSL 1.30): %s %s\n", name, ok ? "compiled" : "FAILED", log);
+    return !ok;
+}
+
+static int probe_glcore(void) {
+    WNDCLASSA wc = {0};
+    wc.lpfnWndProc = DefWindowProcA;
+    wc.hInstance = GetModuleHandleA(NULL);
+    wc.lpszClassName = "d3dprobe_gl";
+    RegisterClassA(&wc);
+    HWND hwnd = CreateWindowA("d3dprobe_gl", "d3dprobe glcore", WS_OVERLAPPEDWINDOW, 0, 0, 64, 64, NULL, NULL, wc.hInstance, NULL);
+    HDC dc = GetDC(hwnd);
+    PIXELFORMATDESCRIPTOR pfd = { sizeof(pfd), 1, PFD_DRAW_TO_WINDOW | PFD_SUPPORT_OPENGL | PFD_DOUBLEBUFFER, PFD_TYPE_RGBA, 32 };
+    pfd.cDepthBits = 24;
+    SetPixelFormat(dc, ChoosePixelFormat(dc, &pfd), &pfd);
+    HGLRC legacy = wglCreateContext(dc);
+    wglMakeCurrent(dc, legacy);
+    create_context_attribs_fn create = (create_context_attribs_fn)wglGetProcAddress("wglCreateContextAttribsARB");
+    if (!create) { printf("no wglCreateContextAttribsARB\n"); return 1; }
+    const int attribs[] = { 0x2091, 3, 0x2092, 3, 0x9126, 1 /* core */, 0x31B3, 0 /* no-error off */, 0 };
+    HGLRC core = create(dc, NULL, attribs);
+    if (!core) { printf("3.3 core context (no forward-compatible bit, NO_ERROR=0): FAILED (error %lu)\n", GetLastError()); return 1; }
+    printf("3.3 core context (no forward-compatible bit, NO_ERROR=0): created\n");
+    wglMakeCurrent(dc, core);
+    printf("GL_VERSION %s\n", (const char *)glGetString(GL_VERSION));
+    const char *vs = "#version 130\nuniform mat4 ProjMtx;\nin vec2 Position;\nin vec2 UV;\nin vec4 Color;\n"
+                     "out vec2 Frag_UV;\nout vec4 Frag_Color;\nvoid main() { Frag_UV = UV; Frag_Color = Color; "
+                     "gl_Position = ProjMtx * vec4(Position.xy, 0, 1); }\n";
+    const char *fs = "#version 130\nuniform sampler2D Texture;\nin vec2 Frag_UV;\nin vec4 Frag_Color;\n"
+                     "out vec4 Out_Color;\nvoid main() { Out_Color = Frag_Color * texture(Texture, Frag_UV.st); }\n";
+    int fails = compile_glsl(0x8B31 /* GL_VERTEX_SHADER */, vs, "vertex") + compile_glsl(0x8B30 /* GL_FRAGMENT_SHADER */, fs, "fragment");
+    wglMakeCurrent(NULL, NULL);
+    wglDeleteContext(core);
+    wglDeleteContext(legacy);
+    printf("glcore %s\n", fails ? "FAILED" : "OK");
+    return fails != 0;
+}
+
 static volatile LONG adapterloop_stop, adapterloop_count;
 
 static DWORD WINAPI adapterloop_thread(void *unused) {
@@ -454,6 +517,7 @@ int main(int argc, char **argv) {
                : strcmp(mode, "timestamp") == 0 ? probe_timestamp()
                : strcmp(mode, "queryorder") == 0 ? probe_queryorder()
                : strcmp(mode, "calibrate") == 0 ? probe_calibrate()
+               : strcmp(mode, "glcore") == 0 ? probe_glcore()
                : strcmp(mode, "adapterloop") == 0 ? probe_adapterloop(argc > 2 ? atoi(argv[2]) : 15)
                : strcmp(mode, "crossproc") == 0 ? probe_crossproc(argc > 2 && strcmp(argv[2], "full") != 0,
                                                                   argc > 2 && strcmp(argv[2], "resize") == 0)

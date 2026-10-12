@@ -201,6 +201,30 @@ hit a FIXME). Two patches wire DXMT to it:
   Library and "Special Offers" pop-up render with text; Library resized through 1279×799,
   1500×900, 1499×899, 1281×801 and back (`SetWindowPos` from inside the prefix) shows no black
   area and no corner square in any capture.
+  **Revised 2026-10-12** after a second review on #141 (Wine `11.18-dxmt-v20`):
+  - **Resize churn.** Chromium replaces each child's layer on every resize: `+macdrv` shows the
+    old remote layer released and a new one created under a new context ID within about 1 ms.
+    The new host stays transparent until its first frame, so Steam flashed black. Measured by
+    resizing Steam's window between 1500×900 and 1300×780 every 60 ms while sampling 40 window
+    captures: v19 showed a near-black or ≥20% black edge band in 14, 8 and 5 of 40. Deferring the
+    owner's host removal alone barely helped (9, 8, 2): the old content disappears when the
+    sending process destroys its `CAContext`. Now the sender parks released swapchains for
+    250 ms (freed on later Wine calls) and the owner removes the old host 250 ms late:
+    0, 0, 0 of 40 on v20. Static and after-churn captures are clean, and `d3dprobe crossproc`
+    plain/inset/resize land exactly as before.
+  - **Retina.** Host and swapchain frames were in Win32 pixels; with Retina mode on they must
+    be Cocoa points, so they now go through `cgrect_mac_from_win()` (halves them in Retina
+    mode, unchanged otherwise). Wine's Retina mode (`HKCU\Software\Wine\Mac Driver`,
+    `RetinaMode=y`) halves coordinates on any display, so it is testable on this 1080p monitor.
+    `d3dprobe crossproc` with Retina mode on, red frame in Win32 pixels of the client:
+    | Probe | Expected | v19 (Win32 pixels as points) | v20 |
+    |---|---|---|---|
+    | full | (0,0) 632×366 | (0,0) 632×366 | (0,0) 632×366 |
+    | inset | (80,60) 300×200 | (160,120) 300×200 | (80,60) 300×200 |
+    | resize, after the move | (200,100) 400×250 | (400,200) 232×166 (clipped) | (200,100) 400×250 |
+    With Retina mode off both builds are exact. Not yet run on a 2× Retina display; a kit for
+    that (`neutron`, Wine v20, DXMT v8, `d3dprobe`, a capture tool and `run.sh`) was built for
+    the user's MacBook Pro.
 - `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
 `d3dprobe crossproc` (one process owns a window with a child window, a second presents red
 into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,

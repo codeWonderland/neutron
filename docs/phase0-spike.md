@@ -214,8 +214,17 @@ hit a FIXME). Two patches wire DXMT to it:
     plain/inset/resize land exactly as before.
   - **Retina.** Host and swapchain frames were in Win32 pixels; with Retina mode on they must
     be Cocoa points, so they now go through `cgrect_mac_from_win()` (halves them in Retina
-    mode, unchanged otherwise). Not verified: this Mac mini drives a non-Retina monitor, where
-    the change is a no-op.
+    mode, unchanged otherwise). Wine's Retina mode (`HKCU\Software\Wine\Mac Driver`,
+    `RetinaMode=y`) halves coordinates on any display, so it is testable on this 1080p monitor.
+    `d3dprobe crossproc` with Retina mode on, red frame in Win32 pixels of the client:
+    | Probe | Expected | v19 (Win32 pixels as points) | v20 |
+    |---|---|---|---|
+    | full | (0,0) 632×366 | (0,0) 632×366 | (0,0) 632×366 |
+    | inset | (80,60) 300×200 | (160,120) 300×200 | (80,60) 300×200 |
+    | resize, after the move | (200,100) 400×250 | (400,200) 232×166 (clipped) | (200,100) 400×250 |
+    With Retina mode off both builds are exact. Not yet run on a 2× Retina display; a kit for
+    that (`neutron`, Wine v20, DXMT v8, `d3dprobe`, a capture tool and `run.sh`) was built for
+    the user's MacBook Pro.
 - `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
 `d3dprobe crossproc` (one process owns a window with a child window, a second presents red
 into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,

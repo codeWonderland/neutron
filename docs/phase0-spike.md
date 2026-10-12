@@ -288,7 +288,9 @@ reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the App
 
 The 12-game sweep (`scripts/sweep.sh`, batch prefix, no Steam) on Wine `11.18-dxmt-v19` + DXMT
 `dxmt-v0.80-v8`: 10 pass as before, and Loop Tower Demo now passes (it failed on v11). A game about
-sucking stays mostly dark (2% non-black, as on every earlier sweep). Captures must run with the
+sucking stays mostly dark (2% non-black, as on every earlier sweep): a DXMT frame dump at 60 s shows
+only its two animated ghost sprites, its Player.log has no render errors (D3D11 FL 11.1) but
+`SteamAPI_Init() failed`, so it most likely waits for Steam; recheck with a signed-in Steam. Captures must run with the
 Steam prefix stopped, or the biggest Wine window is Steam's.
 
 **Idle Colony** (custom OpenGL engine with Dear ImGui) failed in layers:

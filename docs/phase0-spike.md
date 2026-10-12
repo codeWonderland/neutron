@@ -284,6 +284,24 @@ Updating the M1 from macOS 15.5 to 27.0.1 removed Rosetta 2: every x86_64 Wine f
 reinstalling: Wine 11.18-dxmt-v11 starts, DXMT creates a D3D11 device on the Apple M1 (FL 11.0),
 32-bit D3D8 on wined3d creates and presents, and `neutron doctor` is all green.
 
+### Upstream reports
+
+Each local patch's problem is reported upstream (AI assistance disclosed; patches linked for
+reference only, since DXMT doesn't accept AI-assisted contributions):
+
+| Patch / problem | Report |
+|---|---|
+| `tools/dxmt-patch/timestamp-after-event.patch` | [3Shain/dxmt#230](https://github.com/3Shain/dxmt/issues/230) |
+| `tools/dxmt-patch/cross-process-swapchain.patch` + `winemac-remote-metal.patch` | [3Shain/dxmt#141](https://github.com/3Shain/dxmt/issues/141), [Wine #60263](https://bugs.winehq.org/show_bug.cgi?id=60263) (comment) |
+| `tools/dxmt-patch/destroyed-object-release.patch` | [3Shain/dxmt#231](https://github.com/3Shain/dxmt/issues/231) |
+| `tools/wine-dxmt/d3dx9-check-version-debug.patch` | [Wine #60490](https://bugs.winehq.org/show_bug.cgi?id=60490) |
+| `tools/wine-dxmt/bcrypt-des.patch` | [Wine #60491](https://bugs.winehq.org/show_bug.cgi?id=60491) |
+| `tools/wine-dxmt/winemac-gl-context-attribs.patch` (+ GLSL shim noted) | [Wine #60492](https://bugs.winehq.org/show_bug.cgi?id=60492) |
+| `tools/wine-dxmt/winemac-flush-deadlock.patch` | [Wine #60493](https://bugs.winehq.org/show_bug.cgi?id=60493) |
+| WoW64 under Rosetta (no fix; `d3dprobe adapterloop`) | [Wine #60494](https://bugs.winehq.org/show_bug.cgi?id=60494) |
+
+FAudio's xWMA fix was already upstream (FNA-XNA/FAudio ee018363), so not reported.
+
 ### Regression sweep and Idle Colony (2026-10-11)
 
 The 12-game sweep (`scripts/sweep.sh`, batch prefix, no Steam) on Wine `11.18-dxmt-v19` + DXMT

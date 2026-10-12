@@ -38,9 +38,9 @@
 +
          if (!_caLayerHosts)
              _caLayerHosts = [[NSMutableDictionary alloc] init];
- 
--        [self removeCALayerHostView:contextId];
 -
+-        [self removeCALayerHostView:contextId];
+ 
 -        CALayerHost* host = [CALayerHost layer];
 -        [host setContextId:contextId];
 -        host.magnificationFilter = kCAFilterNearest;
@@ -96,10 +96,14 @@
  
          [(WineWindow*)self.window windowDidDrawContent];
      }
-@@ -3781,6 +3827,28 @@
- 
- @end
- 
+@@ -3777,6 +3823,28 @@
+     if (metal_view) macdrv_view_release_metal_view(metal_view);
+     if (device) macdrv_release_metal_device(device);
+     [super dealloc];
++}
++
++@end
++
 +/* The layer a CAContextSwapChain exports: its bounds follow the drawable size the renderer sets
 + * (DXMT's ResizeBuffers, a recreated Vulkan swapchain), so the host shows the whole frame at
 + * its new size. */
@@ -118,13 +122,9 @@
 +    [CATransaction setDisableActions:YES];
 +    self.bounds = CGRectMake(0, 0, size.width / scale, size.height / scale);
 +    [CATransaction commit];
-+}
-+
-+@end
-+
- @interface CAContextSwapChain : NSObject <WineMetalSwapChain>
- {
-     void* hwnd;
+ }
+ 
+ @end
 @@ -3808,7 +3876,7 @@
          return nil;
      }
@@ -134,44 +134,75 @@
      if (!offscreen_layer)
      {
          macdrv_release_metal_device(device);
-@@ -3888,6 +3956,14 @@
+@@ -3886,6 +3954,14 @@
+ void macdrv_destroy_swapchain(id<WineMetalSwapChain> swapchain)
+ {
      [swapchain release];
- }
- 
++}
++
 +void macdrv_swapchain_set_device(id<WineMetalSwapChain> swapchain, id<MTLDevice> device)
 +{
 +    CAMetalLayer *layer = [swapchain layer];
 +    OnMainThread(^{
 +        layer.device = device;
 +    });
-+}
-+
+ }
+ 
  void macdrv_window_create_ca_layer_host_view(WineWindow *window, unsigned int context_id)
- {
- @autoreleasepool
-@@ -3901,6 +3977,19 @@
+@@ -3901,7 +3977,7 @@
  }
  }
  
+-void macdrv_window_release_ca_layer_host_view(WineWindow *window, unsigned int context_id)
 +void macdrv_window_create_ca_layer_host_view_frame(WineWindow *window, unsigned int context_id, CGRect frame, float z)
+ {
+ @autoreleasepool
+ {
+@@ -3909,11 +3985,31 @@
+         NSView* content_view = [window contentView];
+ 
+         if ([content_view isKindOfClass:[WineContentView class]])
+-            [(WineContentView*)content_view removeCALayerHostView:context_id];
++            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id frame:frame zPosition:z];
+     });
+ }
+ }
+ 
++void macdrv_window_release_ca_layer_host_view(WineWindow *window, unsigned int context_id)
 +{
 +@autoreleasepool
 +{
 +    OnMainThread(^{
-+        NSView* content_view = [window contentView];
++        NSView* content_view = [[window contentView] retain];
 +
-+        if ([content_view isKindOfClass:[WineContentView class]])
-+            [(WineContentView*)content_view addCALayerHostViewWithContextId:context_id frame:frame zPosition:z];
++        /* Renderers replace their layer on every resize (Chromium: release, then create
++         * under a new context ID within a millisecond). The new host stays transparent
++         * until its first frame, so keep the old one underneath for a moment instead of
++         * leaving a black gap. */
++        dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 250 * NSEC_PER_MSEC), dispatch_get_main_queue(), ^{
++            if ([content_view isKindOfClass:[WineContentView class]])
++                [(WineContentView*)content_view removeCALayerHostView:context_id];
++            [content_view release];
++        });
 +    });
 +}
 +}
 +
- void macdrv_window_release_ca_layer_host_view(WineWindow *window, unsigned int context_id)
+ bool macdrv_get_view_backing_size(WineContentView *view, int backing_size[2])
  {
- @autoreleasepool
+     if (![view isKindOfClass:[WineContentView class]])
 --- a/dlls/winemac.drv/window.c
 +++ b/dlls/winemac.drv/window.c
-@@ -469,6 +469,181 @@
+@@ -26,6 +26,8 @@
+ #endif
+ 
+ #include "config.h"
++
++#include <time.h>
+ 
+ #include <IOKit/pwr_mgt/IOPMLib.h>
+ #define GetCurrentThread Mac_GetCurrentThread
+@@ -469,6 +471,183 @@
   *
   * Create the whole Mac window for a given window
   */
@@ -297,7 +328,9 @@
 +            rect.bottom != visible.bottom - visible.top)
 +        {
 +            TRACE("hwnd %p: remote layer %u at %s z %u in %p\n", hwnd, context_id, wine_dbgstr_rect(&rect), z, root_data->hwnd);
-+            macdrv_window_create_ca_layer_host_view_frame(root_data->cocoa_window, context_id, cgrect_from_rect(rect), z);
++            /* Win32 pixels to Cocoa points (halved in Retina mode). */
++            macdrv_window_create_ca_layer_host_view_frame(root_data->cocoa_window, context_id,
++                                                          cgrect_mac_from_win(cgrect_from_rect(rect)), z);
 +            set_hosted_remote_layer(hwnd, context_id, TRUE);
 +            return;
 +        }
@@ -353,7 +386,7 @@
  static void create_cocoa_window(struct macdrv_win_data *data)
  {
      struct macdrv_thread_data *thread_data = macdrv_init_thread_data();
-@@ -504,6 +679,7 @@
+@@ -504,6 +683,7 @@
  
      data->cocoa_window = macdrv_create_cocoa_window(&wf, frame, data->hwnd, thread_data->queue);
      if (!data->cocoa_window) goto done;
@@ -361,7 +394,7 @@
  
      set_cocoa_window_properties(data);
  
-@@ -1576,20 +1752,21 @@
+@@ -1576,20 +1756,21 @@
          TRACE("WM_MACDRV_ACTIVATE_ON_FOLLOWING_FOCUS time %u\n", activate_on_focus_time);
          return 0;
      case WM_MACDRV_CREATE_REMOTE_LAYER:
@@ -395,7 +428,7 @@
          return 0;
      }
  
-@@ -1665,7 +1842,11 @@
+@@ -1665,7 +1846,11 @@
      unsigned int new_style = NtUserGetWindowLongW(hwnd, GWL_STYLE);
      struct window_rects old_rects;
  
@@ -408,7 +441,7 @@
  
      thread_data = macdrv_thread_data();
  
-@@ -1717,6 +1898,8 @@
+@@ -1717,6 +1902,8 @@
  
  done:
      release_win_data(data);
@@ -417,7 +450,7 @@
  }
  
  
-@@ -2253,13 +2436,68 @@
+@@ -2253,13 +2440,113 @@
      WineContentView         *client_cocoa_view;
      struct macdrv_win_data  *data;
  };
@@ -432,7 +465,7 @@
 +
 +static pthread_mutex_t remote_swapchains_mutex = PTHREAD_MUTEX_INITIALIZER;
 +static CFMutableSetRef remote_swapchains;
-+
+ 
 +static BOOL is_remote_swapchain(const void *ptr)
 +{
 +    BOOL ret;
@@ -442,16 +475,61 @@
 +    pthread_mutex_unlock(&remote_swapchains_mutex);
 +    return ret;
 +}
- 
++
++/* Released remote swapchains are kept for a moment: renderers replace theirs on every resize
++ * (Chromium releases the old one and creates a new one within a millisecond), and the owner's
++ * host for the new one shows nothing until its first frame, so destroying the old one at once
++ * leaves the window black for a frame or more. Destroying a swapchain posts a message, so the
++ * parked ones are freed on later calls from Wine threads (the next create or release). */
++#define REMOTE_SWAPCHAIN_GRACE_MS 250
++static struct { id_WineMetalSwapChain swapchain; UINT64 since; } parked_swapchains[64];
++static unsigned int parked_count;
++
++static UINT64 monotonic_ms(void)
++{
++    struct timespec ts;
++    clock_gettime(CLOCK_MONOTONIC, &ts);
++    return (UINT64)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
++}
++
++/* Called with remote_swapchains_mutex held; returns the swapchains to destroy now. */
++static unsigned int unpark_swapchains(id_WineMetalSwapChain *expired, BOOL all)
++{
++    UINT64 now = monotonic_ms();
++    unsigned int i, j, count = 0;
++
++    for (i = j = 0; i < parked_count; i++)
++    {
++        if (all || now - parked_swapchains[i].since >= REMOTE_SWAPCHAIN_GRACE_MS)
++            expired[count++] = parked_swapchains[i].swapchain;
++        else
++            parked_swapchains[j++] = parked_swapchains[i];
++    }
++    parked_count = j;
++    return count;
++}
++
++static void destroy_expired_swapchains(void)
++{
++    id_WineMetalSwapChain expired[ARRAY_SIZE(parked_swapchains)];
++    unsigned int i, count;
++
++    pthread_mutex_lock(&remote_swapchains_mutex);
++    count = unpark_swapchains(expired, FALSE);
++    pthread_mutex_unlock(&remote_swapchains_mutex);
++    for (i = 0; i < count; i++) macdrv_destroy_swapchain(expired[i]);
++}
++
 +static id_WineMetalSwapChain create_remote_swapchain(HWND hwnd)
 +{
 +    HWND root = NtUserGetAncestor(hwnd, GA_ROOT);
 +    id_WineMetalSwapChain swapchain;
 +    RECT rect;
 +
++    destroy_expired_swapchains();
 +    if (!root || !NtUserGetClientRect(hwnd, &rect, NtUserGetWinMonitorDpi(hwnd, MDT_RAW_DPI))) return NULL;
 +    /* Ask the window itself (its owner hosts the layer in the top-level window, placed over it). */
-+    if (!(swapchain = macdrv_create_offscreen_swapchain(hwnd, cgrect_from_rect(rect)))) return NULL;
++    if (!(swapchain = macdrv_create_offscreen_swapchain(hwnd, cgrect_mac_from_win(cgrect_from_rect(rect))))) return NULL;
 +    TRACE("hwnd %p (root %p) %s: remote swapchain %p\n", hwnd, root, wine_dbgstr_rect(&rect), swapchain);
 +
 +    pthread_mutex_lock(&remote_swapchains_mutex);
@@ -487,7 +565,7 @@
      if (!data->cocoa_window || !(ret = malloc(sizeof(*ret))))
      {
          release_win_data(data);
-@@ -2273,6 +2511,32 @@
+@@ -2273,6 +2560,40 @@
      return ret;
  }
  
@@ -511,16 +589,24 @@
 +        macdrv_view_release_metal_view(view);
 +        return;
 +    }
-+    pthread_mutex_lock(&remote_swapchains_mutex);
-+    CFSetRemoveValue(remote_swapchains, view);
-+    pthread_mutex_unlock(&remote_swapchains_mutex);
-+    macdrv_destroy_swapchain((id_WineMetalSwapChain)view);
++    {
++        id_WineMetalSwapChain expired[ARRAY_SIZE(parked_swapchains)];
++        unsigned int i, count;
++
++        pthread_mutex_lock(&remote_swapchains_mutex);
++        CFSetRemoveValue(remote_swapchains, view);
++        count = unpark_swapchains(expired, parked_count == ARRAY_SIZE(parked_swapchains));
++        parked_swapchains[parked_count].swapchain = (id_WineMetalSwapChain)view;
++        parked_swapchains[parked_count++].since = monotonic_ms();
++        pthread_mutex_unlock(&remote_swapchains_mutex);
++        for (i = 0; i < count; i++) macdrv_destroy_swapchain(expired[i]);
++    }
 +}
 +
  static void external_release_win_data(struct external_win_data *external)
  {
      if (!external) return;
-@@ -2302,8 +2566,8 @@
+@@ -2302,8 +2623,8 @@
      macdrv_get_cocoa_window,
      macdrv_create_metal_device,
      macdrv_release_metal_device,

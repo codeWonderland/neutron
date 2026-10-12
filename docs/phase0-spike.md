@@ -201,6 +201,21 @@ hit a FIXME). Two patches wire DXMT to it:
   Library and "Special Offers" pop-up render with text; Library resized through 1279×799,
   1500×900, 1499×899, 1281×801 and back (`SetWindowPos` from inside the prefix) shows no black
   area and no corner square in any capture.
+  **Revised 2026-10-12** after a second review on #141 (Wine `11.18-dxmt-v20`):
+  - **Resize churn.** Chromium replaces each child's layer on every resize: `+macdrv` shows the
+    old remote layer released and a new one created under a new context ID within about 1 ms.
+    The new host stays transparent until its first frame, so Steam flashed black. Measured by
+    resizing Steam's window between 1500×900 and 1300×780 every 60 ms while sampling 40 window
+    captures: v19 showed a near-black or ≥20% black edge band in 14, 8 and 5 of 40. Deferring the
+    owner's host removal alone barely helped (9, 8, 2): the old content disappears when the
+    sending process destroys its `CAContext`. Now the sender parks released swapchains for
+    250 ms (freed on later Wine calls) and the owner removes the old host 250 ms late:
+    0, 0, 0 of 40 on v20. Static and after-churn captures are clean, and `d3dprobe crossproc`
+    plain/inset/resize land exactly as before.
+  - **Retina.** Host and swapchain frames were in Win32 pixels; with Retina mode on they must
+    be Cocoa points, so they now go through `cgrect_mac_from_win()` (halves them in Retina
+    mode, unchanged otherwise). Not verified: this Mac mini drives a non-Retina monitor, where
+    the change is a no-op.
 - `tools/dxmt-patch/cross-process-swapchain.patch`: DXMT no longer refuses such windows.
 `d3dprobe crossproc` (one process owns a window with a child window, a second presents red
 into it): E_FAIL before, red window after. Steam (Wine 11.18 built by `tools/wine-dxmt`,

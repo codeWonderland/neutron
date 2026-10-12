@@ -21,6 +21,7 @@
 #   winemac-remote-metal.patch       DXMT can present into another process's window (Chromium's
 #                                    GPU process: Steam's UI) through winemac's remote-layer
 #                                    swapchain. Pairs with tools/dxmt-patch/cross-process-swapchain.
+#                                    Released layers linger 250 ms so resizes don't flash black.
 #   d3dx9-check-version-debug.patch  d3dx9_24..43.dll (32- and 64-bit) accept the D3D_DEBUG_INFO
 #                                    SDK version (32 | 0x80000000) in D3DXCheckVersion. Unreal 3
 #                                    games built with it (Dungeon Defenders 2) crash at startup.
